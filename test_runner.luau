@@ -1636,10 +1636,27 @@ function NovaUI:CreateWindow(config)
         end
     end
 
-    local initSize = config.Size or UDim2.fromOffset(740, 490)
+    -- Mobile Touch Detection & Pin Tab State
+    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    local isPinned = isMobile -- Default pinned on touch/mobile devices
+
+    -- Device Screen & Frame Size Presets
+    local DevicePresets = {
+        ["PC"] = { Name = "PC (Standard)", Size = UDim2.fromOffset(740, 490), Scale = 1.0 },
+        ["Android"] = { Name = "Android / Mobile", Size = UDim2.fromOffset(560, 340), Scale = 0.90 },
+        ["Tablet"] = { Name = "Tablet / iPad", Size = UDim2.fromOffset(640, 410), Scale = 0.95 },
+        ["Compact"] = { Name = "Compact / Mini", Size = UDim2.fromOffset(500, 320), Scale = 0.85 }
+    }
+
+    local savedPresetKey = ConfigData["_Liyhub_DevicePreset"]
+    local defaultPresetKey = isMobile and "Android" or "PC"
+    local activePresetKey = (savedPresetKey and DevicePresets[savedPresetKey]) and savedPresetKey or (config.Device or defaultPresetKey)
+    local activePreset = DevicePresets[activePresetKey] or DevicePresets["PC"]
+
+    local initSize = config.Size or activePreset.Size
     local logoAsset = config.Logo or "rbxassetid://0"
 
-    local sgScale = Utility.Create("UIScale", { Scale = 1.0, Parent = sg })
+    local sgScale = Utility.Create("UIScale", { Scale = activePreset.Scale, Parent = sg })
 
     local mainFrame = Utility.Create("Frame", {
         Name = "MainFrame",
@@ -1650,10 +1667,6 @@ function NovaUI:CreateWindow(config)
         Parent = sg
     }) :: Frame
     Utility.AddCorner(mainFrame, 10); Utility.AddStroke(mainFrame, Theme.Border, 1)
-
-    -- Mobile Touch Detection & Pin Tab State
-    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-    local isPinned = isMobile -- Default pinned on touch/mobile devices
 
     -- Default pin position: Top Center Dynamic Island (UDim2.new(0.5, -58, 0, 50)) avoids Roblox topbar/chat/menu collision
     local defaultPinPos = config.PinPosition or UDim2.new(0.5, -58, 0, 50)
@@ -1666,7 +1679,7 @@ function NovaUI:CreateWindow(config)
 
     local titleText = config.Title
     if not titleText or titleText == "" or titleText == "LiyHub" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
-        titleText = "LiyHub | " .. DetectedGameName
+        titleText = "LIYHUB.CC | " .. DetectedGameName
     elseif titleText:find("{game}") then
         titleText = titleText:gsub("{game}", DetectedGameName)
     elseif not titleText:find("|") and not titleText:lower():find(DetectedGameName:lower()) then
@@ -1676,7 +1689,7 @@ function NovaUI:CreateWindow(config)
         titleText = titleText .. " " .. config.Footer
     end
 
-    local cleanPinTitle = (titleText or "LiyHub"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
+    local cleanPinTitle = (titleText or "LIYHUB"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
 
     -- Floating Mobile Pin Tab (SpeedHub / ChloeX pattern)
     local pinWidget = Utility.Create("TextButton", {
@@ -1692,12 +1705,12 @@ function NovaUI:CreateWindow(config)
     })
     Utility.AddCorner(pinWidget, 16)
     local pinStroke = Utility.AddStroke(pinWidget, Theme.Accent, 1, 0.3)
-    Utility.AddPadding(pinWidget, 0, 0, 10, 10)
+    Utility.AddPadding(pinWidget, 0, 0, 8, 16)
     Utility.CreateLiyhubMark(pinWidget, 18, 8, -9, logoAsset)
     Utility.Create("TextLabel", {
         Size = UDim2.new(0, 0, 1, 0),
         AutomaticSize = Enum.AutomaticSize.X,
-        Position = UDim2.new(0, 24, 0, 0),
+        Position = UDim2.new(0, 34, 0, 0),
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamBold,
         Text = cleanPinTitle,
@@ -2078,19 +2091,76 @@ function NovaUI:CreateWindow(config)
         end
     end
 
-    buildSettingsSection("UI Scale Presets", { "Android (85%)", "Normal (100%)", "Large (115%)" }, function(scaleOpt)
-        if scaleOpt:find("Android") then
-            sgScale.Scale = 0.85
-            mainFrame.Size = UDim2.fromOffset(580, 360)
-        elseif scaleOpt:find("Normal") then
-            sgScale.Scale = 1.0
-            mainFrame.Size = UDim2.fromOffset(740, 490)
-        elseif scaleOpt:find("Large") then
-            sgScale.Scale = 1.15
-            mainFrame.Size = UDim2.fromOffset(800, 520)
+    -- Device Screen & Frame Size Presets
+    local deviceCard = Utility.Create("Frame", {
+        Name = "DeviceCard",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Theme.Surface,
+        Parent = settingsPage
+    })
+    Utility.AddCorner(deviceCard, 8); Utility.AddStroke(deviceCard, Theme.Border, 1); Utility.AddPadding(deviceCard, 12, 12, 12, 12)
+    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 10), Parent = deviceCard })
+
+    Utility.Create("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 18),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Text = "Device & Screen Presets (Auto: " .. (isMobile and "Android" or "PC") .. ")",
+        TextColor3 = Theme.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = deviceCard
+    })
+
+    local presetRow = Utility.Create("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = deviceCard })
+    Utility.Create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), Parent = presetRow })
+
+    local presetKeys = { "PC", "Android", "Tablet", "Compact" }
+    local presetBtns = {}
+    local function applyDevicePreset(pKey)
+        local preset = DevicePresets[pKey]
+        if not preset then return end
+        activePresetKey = pKey
+        ConfigData["_Liyhub_DevicePreset"] = pKey
+        ConfigSystem.QueueSave()
+
+        local targetSize = preset.Size
+        sgScale.Scale = preset.Scale
+        AnimationEngine.Tween(mainFrame, TWEEN_SMOOTH, {
+            Size = targetSize,
+            Position = UDim2.new(0.5, -targetSize.X.Offset/2, 0.5, -targetSize.Y.Offset/2)
+        })
+        for k, b in pairs(presetBtns) do
+            b.BackgroundColor3 = (k == pKey) and Theme.Accent or Theme.SurfaceSecondary
         end
-        Notification.Notify({ Title = "Scale Applied", Content = "Set UI layout to " .. scaleOpt, Type = "Success" })
-    end)
+        Notification.Notify({
+            Title = "Device Preset",
+            Content = "Applied " .. preset.Name .. " (" .. tostring(targetSize.X.Offset) .. "x" .. tostring(targetSize.Y.Offset) .. ")",
+            Type = "Success",
+            Duration = 2.0
+        })
+    end
+
+    for _, pKey in ipairs(presetKeys) do
+        local pData = DevicePresets[pKey]
+        local isCur = (pKey == activePresetKey)
+        local btn = Utility.Create("TextButton", {
+            Size = UDim2.new(1 / #presetKeys, -((#presetKeys - 1) * 8 / #presetKeys), 1, 0),
+            BackgroundColor3 = isCur and Theme.Accent or Theme.SurfaceSecondary,
+            Font = Enum.Font.GothamMedium,
+            Text = pKey,
+            TextColor3 = Theme.Text,
+            TextSize = 12,
+            AutoButtonColor = false,
+            Parent = presetRow
+        })
+        Utility.AddCorner(btn, 6)
+        presetBtns[pKey] = btn
+        btn.MouseButton1Click:Connect(function()
+            applyDevicePreset(pKey)
+        end)
+    end
 
     -- Interactive Custom Toggle Keybind Card
     local keybindCard = Utility.Create("Frame", {
