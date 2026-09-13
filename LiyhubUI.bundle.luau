@@ -137,6 +137,9 @@ local function ResolveLogoAsset(overrideAsset)
             end
         end
     end)
+    if not CachedLogoAsset then
+        CachedLogoAsset = "rbxassetid://123085513549252"
+    end
     return CachedLogoAsset
 end
 
