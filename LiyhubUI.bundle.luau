@@ -1524,9 +1524,40 @@ function Tab:SetVisible(v)
 end
 
 -- ============================================================================
+-- AUTOMATIC GAME DETECTION
+-- ============================================================================
+local DetectedGameName = "Universal"
+pcall(function()
+    local MarketplaceService = game:GetService("MarketplaceService")
+    if game.PlaceId > 0 then
+        local info = MarketplaceService:GetProductInfo(game.PlaceId)
+        if info and info.Name and info.Name ~= "" then
+            DetectedGameName = info.Name
+        end
+    end
+end)
+if DetectedGameName == "Universal" then
+    pcall(function()
+        local name = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId, Enum.InfoType.Asset).Name
+        if name and name ~= "" then DetectedGameName = name end
+    end)
+    if DetectedGameName == "Universal" and game.Name and game.Name ~= "" and game.Name ~= "Place1" and game.Name ~= "Game" then
+        DetectedGameName = game.Name
+    end
+end
+
+-- ============================================================================
 -- MAIN WINDOW CREATION
 -- ============================================================================
-local NovaUI = {}
+local NovaUI = {
+    GameName = DetectedGameName,
+    PlaceId = game.PlaceId,
+    GameId = game.GameId
+}
+function NovaUI:GetGameName()
+    return DetectedGameName
+end
+
 function NovaUI:CreateWindow(config)
     config = config or {}
     local configVersion = config.Version or 1
@@ -1583,12 +1614,25 @@ function NovaUI:CreateWindow(config)
         end)
     end
 
-    local cleanPinTitle = (config.Title or "LIYHUB"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
+    local titleText = config.Title
+    if not titleText or titleText == "" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
+        titleText = "LIYHUB.CC | " .. DetectedGameName
+    elseif titleText:find("{game}") then
+        titleText = titleText:gsub("{game}", DetectedGameName)
+    elseif not titleText:find("|") and not titleText:lower():find(DetectedGameName:lower()) then
+        titleText = titleText .. " | " .. DetectedGameName
+    end
+    if config.Footer and config.Footer ~= "" then
+        titleText = titleText .. " " .. config.Footer
+    end
+
+    local cleanPinTitle = (titleText or "LIYHUB"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
 
     -- Floating Mobile Pin Tab (SpeedHub / ChloeX pattern)
     local pinWidget = Utility.Create("TextButton", {
         Name = "FloatingPinWidget",
-        Size = UDim2.new(0, 116, 0, 32),
+        Size = UDim2.new(0, 0, 0, 32),
+        AutomaticSize = Enum.AutomaticSize.X,
         Position = defaultPinPos,
         BackgroundColor3 = Theme.Surface,
         Text = "",
@@ -1598,11 +1642,12 @@ function NovaUI:CreateWindow(config)
     })
     Utility.AddCorner(pinWidget, 16)
     local pinStroke = Utility.AddStroke(pinWidget, Theme.Accent, 1, 0.3)
-    Utility.AddPadding(pinWidget, 0, 0, 8, 8)
+    Utility.AddPadding(pinWidget, 0, 0, 10, 10)
     Utility.CreateLiyhubMark(pinWidget, 18, 8, -9)
     Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -34, 1, 0),
-        Position = UDim2.new(0, 32, 0, 0),
+        Size = UDim2.new(0, 0, 1, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
+        Position = UDim2.new(0, 24, 0, 0),
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamBold,
         Text = cleanPinTitle,
@@ -1688,30 +1733,46 @@ function NovaUI:CreateWindow(config)
     Utility.Create("Frame", { Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = Theme.Border, BorderSizePixel = 0, ZIndex = 2, Parent = topBar })
 
     Utility.CreateLiyhubMark(topBar, 22, 12, -11)
-    local titleText = config.Title or "LIYHUB.CC"
-    if config.Footer and config.Footer ~= "" then
-        titleText = titleText .. " " .. config.Footer
-    end
-    Utility.Create("TextLabel", {
-        Size = UDim2.new(0, 120, 1, 0),
+
+    local leftHeader = Utility.Create("Frame", {
+        Name = "LeftHeader",
+        Size = UDim2.new(1, -150, 1, 0),
         Position = UDim2.new(0, 42, 0, 0),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+        Parent = topBar
+    })
+    Utility.Create("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        Padding = UDim.new(0, 8),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = leftHeader
+    })
+
+    Utility.Create("TextLabel", {
+        Name = "TitleLabel",
+        LayoutOrder = 1,
+        Size = UDim2.new(0, 0, 1, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamBold,
         Text = titleText,
         TextColor3 = Theme.Text,
         TextSize = 13,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = topBar
+        Parent = leftHeader
     })
 
     -- Live Status Indicator Badge
     local statusBadge = Utility.Create("Frame", {
         Name = "StatusBadge",
+        LayoutOrder = 2,
         Size = UDim2.new(0, 72, 0, 20),
-        Position = UDim2.new(0, 168, 0.5, -10),
         BackgroundColor3 = Theme.SurfaceSecondary,
         BorderSizePixel = 0,
-        Parent = topBar
+        Parent = leftHeader
     })
     Utility.AddCorner(statusBadge, 10)
     Utility.AddStroke(statusBadge, Theme.Border, 1)
@@ -1739,11 +1800,11 @@ function NovaUI:CreateWindow(config)
 
     local verBadge = Utility.Create("Frame", {
         Name = "VerBadge",
+        LayoutOrder = 3,
         Size = UDim2.new(0, 36, 0, 20),
-        Position = UDim2.new(0, 246, 0.5, -10),
         BackgroundColor3 = Theme.SurfaceSecondary,
         BorderSizePixel = 0,
-        Parent = topBar
+        Parent = leftHeader
     })
     Utility.AddCorner(verBadge, 10)
     Utility.AddStroke(verBadge, Theme.Border, 1)
