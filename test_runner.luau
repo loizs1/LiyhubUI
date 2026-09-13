@@ -1214,6 +1214,7 @@ function ColorPicker.new(parent, config)
         Text = keyName,
         TextColor3 = Theme.Text,
         TextSize = 12,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = frame
     })
@@ -1340,26 +1341,28 @@ function Textbox.new(parent, config)
     Utility.AddCorner(frame, 6); Utility.AddStroke(frame, Theme.Border, 1); Utility.AddPadding(frame, 8, 8, 12, 12)
 
     Utility.Create("TextLabel", {
-        Size = UDim2.new(0.5, 0, 1, 0),
+        Size = UDim2.new(1, -115, 1, 0),
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamMedium,
         Text = keyName,
         TextColor3 = Theme.Text,
         TextSize = 12,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = frame
     })
 
     local input = Utility.Create("TextBox", {
-        Size = UDim2.new(0.5, 0, 0, 22),
-        Position = UDim2.new(0.5, 0, 0.5, -11),
+        Size = UDim2.new(0, 105, 0, 22),
+        Position = UDim2.new(1, -105, 0.5, -11),
         BackgroundColor3 = Theme.Surface,
         Font = Enum.Font.Gotham,
         Text = curText,
         PlaceholderText = config.Placeholder or "Type here...",
         PlaceholderColor3 = Theme.TextSecondary,
         TextColor3 = Theme.Text,
-        TextSize = 12,
+        TextSize = 11,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
         ClearTextOnFocus = false,
         Parent = frame
@@ -1679,7 +1682,7 @@ function NovaUI:CreateWindow(config)
 
     local titleText = config.Title
     if not titleText or titleText == "" or titleText == "LiyHub" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
-        titleText = "LIYHUB.CC | " .. DetectedGameName
+        titleText = "LiyHub | " .. DetectedGameName
     elseif titleText:find("{game}") then
         titleText = titleText:gsub("{game}", DetectedGameName)
     elseif not titleText:find("|") and not titleText:lower():find(DetectedGameName:lower()) then
@@ -1689,7 +1692,7 @@ function NovaUI:CreateWindow(config)
         titleText = titleText .. " " .. config.Footer
     end
 
-    local cleanPinTitle = (titleText or "LIYHUB"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
+    local cleanPinTitle = (titleText or "LiyHub"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
 
     -- Floating Mobile Pin Tab (SpeedHub / ChloeX pattern)
     local pinWidget = Utility.Create("TextButton", {
