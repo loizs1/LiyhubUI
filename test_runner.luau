@@ -107,7 +107,42 @@ end
 function Utility.AddPadding(inst, top, bot, left, right)
     return Utility.Create("UIPadding", { PaddingTop = UDim.new(0, top or 8), PaddingBottom = UDim.new(0, bot or 8), PaddingLeft = UDim.new(0, left or 8), PaddingRight = UDim.new(0, right or 8), Parent = inst })
 end
-function Utility.CreateLiyhubMark(parent, size, posX, posY)
+local CachedLogoAsset = nil
+local LogoChecked = false
+
+local function ResolveLogoAsset(overrideAsset)
+    if overrideAsset and overrideAsset ~= "" and overrideAsset ~= "rbxassetid://0" then
+        return overrideAsset
+    end
+    if LogoChecked then return CachedLogoAsset end
+    LogoChecked = true
+
+    pcall(function()
+        if typeof(isfile) == "function" and typeof(writefile) == "function" and typeof(getcustomasset) == "function" then
+            local path = "Liyhub/logo.png"
+            if typeof(isfolder) == "function" and not isfolder("Liyhub") then
+                makefolder("Liyhub")
+            end
+            if not isfile(path) then
+                local raw = game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/logo.png")
+                if raw and #raw > 100 then
+                    writefile(path, raw)
+                end
+            end
+            if isfile(path) then
+                local asset = getcustomasset(path)
+                if asset then
+                    CachedLogoAsset = asset
+                end
+            end
+        end
+    end)
+    return CachedLogoAsset
+end
+
+function Utility.CreateLiyhubMark(parent, size, posX, posY, overrideLogo)
+    local logoAsset = ResolveLogoAsset(overrideLogo)
+
     local root = Utility.Create("Frame", {
         Name = "LiyhubMark",
         Size = UDim2.fromOffset(size, size),
@@ -118,6 +153,19 @@ function Utility.CreateLiyhubMark(parent, size, posX, posY)
     })
     Utility.AddCorner(root, size / 2)
     Utility.AddStroke(root, Theme.Accent, 1, 0.4)
+
+    if logoAsset then
+        local img = Utility.Create("ImageLabel", {
+            Name = "LogoImage",
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            Image = logoAsset,
+            ScaleType = Enum.ScaleType.Fit,
+            Parent = root
+        })
+        Utility.AddCorner(img, size / 2)
+        return root
+    end
 
     local scale = size / 22
 
@@ -183,7 +231,6 @@ function Utility.CreateLiyhubMark(parent, size, posX, posY)
         Parent = root
     })
     Utility.AddCorner(orb, orbSize / 2)
-
     return root
 end
 function Utility.MakeDraggable(gui, dragPart)
@@ -1615,8 +1662,8 @@ function NovaUI:CreateWindow(config)
     end
 
     local titleText = config.Title
-    if not titleText or titleText == "" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
-        titleText = "LIYHUB.CC | " .. DetectedGameName
+    if not titleText or titleText == "" or titleText == "LiyHub" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
+        titleText = "LiyHub | " .. DetectedGameName
     elseif titleText:find("{game}") then
         titleText = titleText:gsub("{game}", DetectedGameName)
     elseif not titleText:find("|") and not titleText:lower():find(DetectedGameName:lower()) then
@@ -1626,7 +1673,7 @@ function NovaUI:CreateWindow(config)
         titleText = titleText .. " " .. config.Footer
     end
 
-    local cleanPinTitle = (titleText or "LIYHUB"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
+    local cleanPinTitle = (titleText or "LiyHub"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
 
     -- Floating Mobile Pin Tab (SpeedHub / ChloeX pattern)
     local pinWidget = Utility.Create("TextButton", {
@@ -1643,7 +1690,7 @@ function NovaUI:CreateWindow(config)
     Utility.AddCorner(pinWidget, 16)
     local pinStroke = Utility.AddStroke(pinWidget, Theme.Accent, 1, 0.3)
     Utility.AddPadding(pinWidget, 0, 0, 10, 10)
-    Utility.CreateLiyhubMark(pinWidget, 18, 8, -9)
+    Utility.CreateLiyhubMark(pinWidget, 18, 8, -9, logoAsset)
     Utility.Create("TextLabel", {
         Size = UDim2.new(0, 0, 1, 0),
         AutomaticSize = Enum.AutomaticSize.X,
@@ -1732,7 +1779,7 @@ function NovaUI:CreateWindow(config)
     Utility.Create("Frame", { Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10), BackgroundColor3 = Theme.Surface, BorderSizePixel = 0, Parent = topBar })
     Utility.Create("Frame", { Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = Theme.Border, BorderSizePixel = 0, ZIndex = 2, Parent = topBar })
 
-    Utility.CreateLiyhubMark(topBar, 22, 12, -11)
+    Utility.CreateLiyhubMark(topBar, 22, 12, -11, logoAsset)
 
     local leftHeader = Utility.Create("Frame", {
         Name = "LeftHeader",
@@ -2546,8 +2593,6 @@ local SaveConfig = (typeof(getgenv) == "function" and getgenv().SaveConfig) or _
 local LoadConfig = (typeof(getgenv) == "function" and getgenv().LoadConfig) or _G.LoadConfig
 
 local Window = NovaUI:CreateWindow({
-    Title   = "LIYHUB.CC |",
-    Footer  = "99Night",
     Size    = UDim2.fromOffset(740, 490),
     Version = 1
 })

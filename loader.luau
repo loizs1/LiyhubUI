@@ -16,7 +16,7 @@ local gameTitle = Liyhub.GameName or "Universal"
 -- ============================================================================
 if PlaceId == 6068496214 then
     local Window = Liyhub:CreateWindow({
-        Title = "LIYHUB.CC | Jailbreak",
+        Title = "LiyHub | Jailbreak",
         Size = UDim2.fromOffset(740, 490)
     })
     local MainTab = Window:AddTab("Main", "🚗")
@@ -34,7 +34,7 @@ if PlaceId == 6068496214 then
 -- ============================================================================
 elseif PlaceId == 2753915549 or PlaceId == 4442272183 or PlaceId == 7449423635 then
     local Window = Liyhub:CreateWindow({
-        Title = "LIYHUB.CC | Blox Fruits",
+        Title = "LiyHub | Blox Fruits",
         Size = UDim2.fromOffset(740, 490)
     })
     local FarmTab = Window:AddTab("Auto Farm", "⚔️")
@@ -52,7 +52,7 @@ elseif PlaceId == 2753915549 or PlaceId == 4442272183 or PlaceId == 7449423635 t
 -- ============================================================================
 elseif PlaceId == 286090424 then
     local Window = Liyhub:CreateWindow({
-        Title = "LIYHUB.CC | Arsenal",
+        Title = "LiyHub | Arsenal",
         Size = UDim2.fromOffset(740, 490)
     })
     local CombatTab = Window:AddTab("Combat", "🎯")
@@ -70,7 +70,7 @@ elseif PlaceId == 286090424 then
 -- ============================================================================
 else
     local Window = Liyhub:CreateWindow({
-        Title = "LIYHUB.CC | " .. gameTitle,
+        Title = "LiyHub | " .. gameTitle,
         Size = UDim2.fromOffset(740, 490)
     })
 
@@ -118,7 +118,7 @@ end
 
 -- Notification feedback
 Liyhub:Notify({
-    Title = "LIYHUB.CC",
+    Title = "LiyHub",
     Content = "Connected to " .. gameTitle,
     Duration = 2.5,
     Type = "Success"
