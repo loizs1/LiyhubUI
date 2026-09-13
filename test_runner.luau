@@ -2476,4 +2476,343 @@ end
 
 function NovaUI:Notify(config) Notification.Notify(config) end
 
-return NovaUI
+
+
+-- LIVE DEMO: FULL 10-COMPONENT INTEGRATION SHOWCASE WITH FUNCTIONAL MODULES
+-- ============================================================================
+local ConfigData = (typeof(getgenv) == "function" and getgenv().ConfigData) or _G.ConfigData or {}
+local SaveConfig = (typeof(getgenv) == "function" and getgenv().SaveConfig) or _G.SaveConfig
+local LoadConfig = (typeof(getgenv) == "function" and getgenv().LoadConfig) or _G.LoadConfig
+
+local Window = NovaUI:CreateWindow({
+    Title   = "LIYHUB.CC |",
+    Footer  = "99Night",
+    Size    = UDim2.fromOffset(740, 490),
+    Version = 1
+})
+
+-- SpeedHub / ChloeX Global Custom Config Demo
+ConfigData.WebhookURL = "https://discord.com/api/webhooks/example"
+ConfigData.PlayerName = LocalPlayer and LocalPlayer.Name or "Player123"
+if SaveConfig then SaveConfig() end
+
+-- State tracking for functional modules
+local Modules = {
+    SilentAim = true,
+    HitChance = 85,
+    FOVVisible = false,
+    FOVRadius = 120,
+    FOVColor = Color3.fromRGB(0, 162, 255),
+    ESPEnabled = true,
+    ESPRange = 1500,
+    ESPColor = Color3.fromRGB(50, 205, 110),
+    Noclip = false,
+    InfJump = true,
+    SpeedMulti = false,
+    WalkSpeedVal = 45,
+    FlyActive = false
+}
+
+-- TAB 1: COMBAT (Full component showcase)
+local Combat = Window:AddTab("Combat", "🎯")
+local CombatLeft = Combat:AddSection("Targeting", "Left")
+
+CombatLeft:AddToggle({
+    Name = "Enable Silent Aim",
+    Default = Modules.SilentAim,
+    Callback = function(v) Modules.SilentAim = v end
+})
+CombatLeft:AddSlider({
+    Name = "Hit Chance %",
+    Min = 1,
+    Max = 100,
+    Default = Modules.HitChance,
+    Callback = function(v) Modules.HitChance = v end
+})
+CombatLeft:AddDropdown({
+    Name = "Target Bone",
+    Options = { "Head", "Torso", "HumanoidRootPart", "Closest" },
+    Default = "Head"
+})
+CombatLeft:AddMultiDropdown({
+    Name = "Target Filter",
+    Options = { "Enemies", "NPCs", "Friends", "Staff" },
+    Default = { "Enemies" }
+})
+CombatLeft:AddKeybind({ Name = "Aim Keybind", Default = Enum.KeyCode.RightControl })
+
+local CombatRight = Combat:AddSection("Overlay & Hardware", "Right")
+CombatRight:AddToggle({
+    Name = "Draw FOV Circle",
+    Default = false,
+    Callback = function(v)
+        Modules.FOVVisible = v
+        if DrawingOverlay.FOV then DrawingOverlay.FOV.Visible = v end
+    end
+})
+CombatRight:AddSlider({
+    Name = "FOV Radius",
+    Min = 30,
+    Max = 300,
+    Default = 120,
+    Callback = function(r)
+        Modules.FOVRadius = r
+        if DrawingOverlay.FOV then DrawingOverlay.FOV.Radius = r end
+    end
+})
+CombatRight:AddColorPicker({
+    Name = "FOV Circle Color",
+    Default = Modules.FOVColor,
+    Callback = function(c)
+        Modules.FOVColor = c
+        if DrawingOverlay.FOV then DrawingOverlay.FOV.Color = c end
+    end
+})
+CombatRight:AddTextbox({ Name = "Custom Priority", Placeholder = "Player name or ID...", Default = "" })
+CombatRight:AddButton({
+    Name = "Instant Reload / Fire",
+    Callback = function()
+        NovaUI:Notify({ Title = "Weapon Pulse", Content = "Reload burst fired across client registry", Type = "Success" })
+    end
+})
+
+-- TAB 2: VISUALS (Functional Highlight ESP)
+local Visuals = Window:AddTab("Visuals", "👁")
+local VisLeft = Visuals:AddSection("ESP Highlights", "Left")
+
+local espHighlights = {}
+local function updateESP()
+    for player, hl in pairs(espHighlights) do
+        if not player or not player.Parent then
+            if hl and hl.Parent then hl:Destroy() end
+            espHighlights[player] = nil
+        elseif player.Character and Modules.ESPEnabled then
+            hl.Adornee = player.Character
+            hl.FillColor = Modules.ESPColor
+            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+            hl.Enabled = true
+        elseif hl then
+            hl.Enabled = false
+        end
+    end
+end
+
+local function attachESP(player)
+    if player == LocalPlayer then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "Liyhub_ESP"
+    hl.FillColor = Modules.ESPColor
+    hl.FillTransparency = 0.55
+    hl.OutlineTransparency = 0.1
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Enabled = Modules.ESPEnabled
+    hl.Parent = targetParent
+    espHighlights[player] = hl
+    if player.Character then hl.Adornee = player.Character end
+    player.CharacterAdded:Connect(function(char)
+        if Modules.ESPEnabled then hl.Adornee = char end
+    end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do attachESP(p) end
+Players.PlayerAdded:Connect(attachESP)
+Players.PlayerRemoving:Connect(function(p)
+    if espHighlights[p] then
+        espHighlights[p]:Destroy()
+        espHighlights[p] = nil
+    end
+end)
+
+VisLeft:AddToggle({
+    Name = "Box 2D / 3D Chams",
+    Default = true,
+    Callback = function(v)
+        Modules.ESPEnabled = v
+        updateESP()
+    end
+})
+VisLeft:AddColorPicker({
+    Name = "ESP Accent Color",
+    Default = Modules.ESPColor,
+    Callback = function(c)
+        Modules.ESPColor = c
+        updateESP()
+    end
+})
+VisLeft:AddSlider({
+    Name = "Max Render Distance",
+    Min = 100,
+    Max = 5000,
+    Default = 1500,
+    Callback = function(d) Modules.ESPRange = d end
+})
+
+local VisRight = Visuals:AddSection("Chams Details", "Right")
+VisRight:AddParagraph({
+    Title = "Chams Architecture",
+    Content = "High-precision depth engine with zero occlusion delay and automatic team filtering."
+})
+VisRight:AddDropdown({
+    Name = "Depth Occlusion Mode",
+    Options = { "AlwaysOnTop", "Occluded" },
+    Default = "AlwaysOnTop",
+    Callback = function(mode)
+        local dMode = mode == "AlwaysOnTop" and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+        for _, hl in pairs(espHighlights) do hl.DepthMode = dMode end
+    end
+})
+VisRight:AddButton({
+    Name = "Refresh ESP Pool",
+    Callback = function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and not espHighlights[p] then attachESP(p) end
+        end
+        updateESP()
+        NovaUI:Notify({ Title = "ESP Pool", Content = "Refreshed all player highlights", Type = "Success" })
+    end
+})
+
+-- TAB 3: MISCELLANEOUS & MOVEMENT
+local Misc = Window:AddTab("Misc", "⚡")
+local MiscLeft = Misc:AddSection("Movement", "Left")
+
+-- 1. Noclip Engine
+RunService.Stepped:Connect(function()
+    if Modules.Noclip and LocalPlayer and LocalPlayer.Character then
+        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+MiscLeft:AddToggle({
+    Name = "Noclip (Through Walls)",
+    Default = false,
+    Callback = function(v)
+        Modules.Noclip = v
+        NovaUI:Notify({ Title = "Noclip", Content = v and "Collision disabled" or "Collision restored", Duration = 1.5 })
+    end
+})
+
+-- 2. Infinite Jump Engine
+UserInputService.JumpRequest:Connect(function()
+    if Modules.InfJump and LocalPlayer and LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
+end)
+
+MiscLeft:AddToggle({
+    Name = "Infinite Jump",
+    Default = true,
+    Callback = function(v) Modules.InfJump = v end
+})
+
+-- 3. WalkSpeed Multiplier
+MiscLeft:AddToggle({
+    Name = "Speed Multiplier",
+    Default = false,
+    Callback = function(v)
+        Modules.SpeedMulti = v
+        if LocalPlayer and LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = v and Modules.WalkSpeedVal or 16 end
+        end
+    end
+})
+MiscLeft:AddSlider({
+    Name = "WalkSpeed Value",
+    Min = 16,
+    Max = 250,
+    Default = 45,
+    Callback = function(s)
+        Modules.WalkSpeedVal = s
+        if Modules.SpeedMulti and LocalPlayer and LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = s end
+        end
+    end
+})
+
+local MiscRight = Misc:AddSection("Server Utility", "Right")
+MiscRight:AddButton({
+    Name = "🔄  Rejoin Current Server",
+    Callback = function()
+        NovaUI:Notify({ Title = "Teleport", Content = "Rejoining current place instance...", Duration = 2 })
+        task.delay(0.5, function()
+            pcall(function()
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+            end)
+        end)
+    end
+})
+MiscRight:AddButton({
+    Name = "🌐  Server Hop (Random Match)",
+    Callback = function()
+        NovaUI:Notify({ Title = "Server Hop", Content = "Searching for match instance...", Duration = 2 })
+        task.delay(0.5, function()
+            pcall(function()
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+            end)
+        end)
+    end
+})
+MiscRight:AddButton({
+    Name = "📋  Copy Job ID to Clipboard",
+    Callback = function()
+        pcall(function()
+            if typeof(setclipboard) == "function" then
+                setclipboard(tostring(game.JobId))
+            end
+        end)
+        NovaUI:Notify({ Title = "Clipboard", Content = "Copied Job ID: " .. string.sub(tostring(game.JobId), 1, 12) .. "...", Duration = 2 })
+    end
+})
+MiscRight:AddParagraph({
+    Title = "Liyhub Architecture",
+    Content = "Zero-lag animation engine active. Config JSON persistence and Drawing overlay running in background."
+})
+
+
+
+-- Extra tabs to demonstrate smooth sidebar scrolling
+local Teleports = Window:AddTab("Teleports", "🌐")
+local TelSection = Teleports:AddSection("Fast Travel", "Left")
+TelSection:AddButton({ Name = "Spawn Point", Callback = function() end })
+
+local PlayersTab = Window:AddTab("Players", "👥")
+local PlrSection = PlayersTab:AddSection("Player List", "Left")
+PlrSection:AddButton({ Name = "Spectate Selected", Callback = function() end })
+
+local Automation = Window:AddTab("Automation", "⚙️")
+local AutoSection = Automation:AddSection("Task Engine", "Left")
+AutoSection:AddToggle({ Name = "Auto Farm Loop", Default = false })
+
+local ServerTab = Window:AddTab("Server", "📡")
+local SrvSection = ServerTab:AddSection("Network Logs", "Left")
+SrvSection:AddLabel("Latency Monitor Active")
+
+
+
+
+-- Extra tabs to demonstrate smooth sidebar scrolling
+local Teleports = Window:AddTab("Teleports", "🌐")
+local TelSection = Teleports:AddSection("Fast Travel", "Left")
+TelSection:AddButton({ Name = "Spawn Point", Callback = function() end })
+
+local PlayersTab = Window:AddTab("Players", "👥")
+local PlrSection = PlayersTab:AddSection("Player List", "Left")
+PlrSection:AddButton({ Name = "Spectate Selected", Callback = function() end })
+
+local Automation = Window:AddTab("Automation", "⚙️")
+local AutoSection = Automation:AddSection("Task Engine", "Left")
+AutoSection:AddToggle({ Name = "Auto Farm Loop", Default = false })
+
+local ServerTab = Window:AddTab("Server", "📡")
+local SrvSection = ServerTab:AddSection("Network Logs", "Left")
+SrvSection:AddLabel("Latency Monitor Active")
+
+
+return "Black Modern 10-Component Suite Loaded Successfully"

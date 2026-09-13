@@ -41,4 +41,84 @@ function Utility.AddPadding(instance: Instance, top: number?, bottom: number?, l
     }) :: UIPadding
 end
 
+function Utility.CreateLiyhubMark(parent: Instance, size: number, posX: number, posY: number?): Frame
+    local root = Utility.Create("Frame", {
+        Name = "LiyhubMark",
+        Size = UDim2.fromOffset(size, size),
+        Position = UDim2.new(0, posX, 0.5, posY or -math.floor(size / 2)),
+        BackgroundColor3 = Color3.fromRGB(15, 15, 20),
+        BorderSizePixel = 0,
+        Parent = parent,
+    }) :: Frame
+    Utility.AddCorner(root, size / 2)
+    Utility.AddStroke(root, Color3.fromRGB(0, 162, 255), 1, 0.4)
+
+    local scale = size / 22
+
+    -- Vertical stem of L
+    local stemW = math.floor(4 * scale + 0.5)
+    local stemH = math.floor(13 * scale + 0.5)
+    local stemX = math.floor(5 * scale + 0.5)
+    local stemY = math.floor(4 * scale + 0.5)
+
+    local stem = Utility.Create("Frame", {
+        Name = "Stem",
+        Size = UDim2.fromOffset(stemW, stemH),
+        Position = UDim2.fromOffset(stemX, stemY),
+        BackgroundColor3 = Color3.fromRGB(255, 150, 30),
+        BorderSizePixel = 0,
+        Parent = root,
+    })
+    Utility.AddCorner(stem, 2)
+    Utility.Create("UIGradient", {
+        Rotation = 90,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 155, 35)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 175, 255)),
+        }),
+        Parent = stem,
+    })
+
+    -- Horizontal foot of L
+    local footW = math.floor(11 * scale + 0.5)
+    local footH = math.floor(4 * scale + 0.5)
+    local footX = math.floor(5 * scale + 0.5)
+    local footY = math.floor((4 + 13 - 4) * scale + 0.5)
+
+    local foot = Utility.Create("Frame", {
+        Name = "Foot",
+        Size = UDim2.fromOffset(footW, footH),
+        Position = UDim2.fromOffset(footX, footY),
+        BackgroundColor3 = Color3.fromRGB(0, 170, 255),
+        BorderSizePixel = 0,
+        Parent = root,
+    })
+    Utility.AddCorner(foot, 2)
+    Utility.Create("UIGradient", {
+        Rotation = 0,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 145, 60)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 175, 255)),
+        }),
+        Parent = foot,
+    })
+
+    -- Celestial Orb (Sun/Moon accent inside L angle)
+    local orbSize = math.floor(4 * scale + 0.5)
+    local orbX = math.floor(12 * scale + 0.5)
+    local orbY = math.floor(6 * scale + 0.5)
+
+    local orb = Utility.Create("Frame", {
+        Name = "CelestialOrb",
+        Size = UDim2.fromOffset(orbSize, orbSize),
+        Position = UDim2.fromOffset(orbX, orbY),
+        BackgroundColor3 = Color3.fromRGB(255, 215, 65),
+        BorderSizePixel = 0,
+        Parent = root,
+    })
+    Utility.AddCorner(orb, orbSize / 2)
+
+    return root
+end
+
 return Utility

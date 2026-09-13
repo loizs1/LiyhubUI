@@ -19,18 +19,20 @@ function Tab.new(parent: Instance, name: string)
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        ScrollBarThickness = 4,
+        ScrollBarThickness = 3,
         ScrollBarImageColor3 = theme.Border,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
         Visible = false,
         Parent = parent,
     }) :: ScrollingFrame
 
     Utility.AddPadding(self.Frame, 16, 16, 16, 16)
 
-    -- Two-column layout container
+    -- Two-column layout container (exact -32px margin prevents clipping in ScrollingFrame)
     self.ColumnContainer = Utility.Create("Frame", {
         Name = "Columns",
-        Size = UDim2.new(1, 0, 0, 0),
+        Size = UDim2.new(1, -32, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
         Parent = self.Frame,
@@ -38,7 +40,7 @@ function Tab.new(parent: Instance, name: string)
 
     self.LeftColumn = Utility.Create("Frame", {
         Name = "LeftColumn",
-        Size = UDim2.new(0.49, 0, 0, 0),
+        Size = UDim2.new(0.5, -6, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
         Parent = self.ColumnContainer,
@@ -52,8 +54,8 @@ function Tab.new(parent: Instance, name: string)
 
     self.RightColumn = Utility.Create("Frame", {
         Name = "RightColumn",
-        Size = UDim2.new(0.49, 0, 0, 0),
-        Position = UDim2.new(0.51, 0, 0, 0),
+        Size = UDim2.new(0.5, -6, 0, 0),
+        Position = UDim2.new(0.5, 6, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
         Parent = self.ColumnContainer,
@@ -64,6 +66,7 @@ function Tab.new(parent: Instance, name: string)
         Padding = UDim.new(0, 12),
         Parent = self.RightColumn,
     })
+
 
     self._maid:GiveTask(Theme.OnThemeChanged(function(t)
         self.Frame.ScrollBarImageColor3 = t.Border

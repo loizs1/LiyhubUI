@@ -43,4 +43,12 @@ function NovaUI:Notify(config: Types.NotificationConfig)
     Notification.Notify(config)
 end
 
+function NovaUI:GetExecutor(): string
+    local name = (identifyexecutor and select(1, identifyexecutor())) or (getexecutorname and getexecutorname())
+    if name and name ~= "" then return name end
+    if syn then return "Synapse X" end
+    if isourclosure then return "Custom Executor" end
+    return "Studio"
+end
+
 return NovaUI

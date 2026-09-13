@@ -27,13 +27,36 @@ function Window.new(config: Types.WindowConfig)
     end
     local theme = Theme.GetTheme()
 
-    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+    local function getSafeContainer(): Instance
+        if typeof(gethui) == "function" then
+            local ok, hui = pcall(gethui)
+            if ok and hui then return hui end
+        end
+        local CoreGui = game:GetService("CoreGui")
+        local hasProtect = (typeof(syn) == "table" and typeof(syn.protect_gui) == "function") or (typeof(protect_gui) == "function") or (typeof(protectgui) == "function")
+        if hasProtect then return CoreGui end
+        local rbxGui = CoreGui:FindFirstChild("RobloxGui")
+        if rbxGui then return rbxGui end
+        local lp = Players.LocalPlayer
+        return (lp and lp:FindFirstChildOfClass("PlayerGui")) or CoreGui
+    end
+
+    local stealthName = "RobloxGui_" .. string.sub(game:GetService("HttpService"):GenerateGUID(false):gsub("-", ""), 1, 10)
     self.ScreenGui = Utility.Create("ScreenGui", {
-        Name = "NovaUI_ScreenGui",
+        Name = stealthName,
         ResetOnSpawn = false,
         DisplayOrder = 100,
-        Parent = playerGui,
+        IgnoreGuiInset = true,
+        Parent = getSafeContainer(),
     }) :: ScreenGui
+
+    if typeof(syn) == "table" and typeof(syn.protect_gui) == "function" then
+        pcall(syn.protect_gui, self.ScreenGui)
+    elseif typeof(protect_gui) == "function" then
+        pcall(protect_gui, self.ScreenGui)
+    elseif typeof(protectgui) == "function" then
+        pcall(protectgui, self.ScreenGui)
+    end
 
     self.UIScale = Utility.Create("UIScale", {
         Scale = State.Scale,
@@ -136,7 +159,7 @@ function Window.new(config: Types.WindowConfig)
         Name = "ContentArea",
         Size = UDim2.new(0.76, -1, 1, -32),
         Position = UDim2.new(0.24, 1, 0, 32),
-        BackgroundColor3 = theme.Background,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Parent = self.MainFrame,
     }) :: Frame
@@ -147,7 +170,6 @@ function Window.new(config: Types.WindowConfig)
     self._maid:GiveTask(Theme.OnThemeChanged(function(t)
         self.MainFrame.BackgroundColor3 = t.Background
         mainStroke.Color = t.Border
-        self.ContentArea.BackgroundColor3 = t.Background
     end))
 
     -- Entrance Animation

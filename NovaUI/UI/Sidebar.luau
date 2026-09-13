@@ -25,6 +25,8 @@ function Sidebar.new(parent: Instance, onSettingsClicked: () -> ())
         Parent = parent,
     }) :: Frame
 
+    Utility.Create("Frame", { Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = theme.Border, BorderSizePixel = 0, Parent = self.Frame })
+
     Utility.AddPadding(self.Frame, 12, 12, 12, 12)
 
     -- Header / Title
