@@ -462,6 +462,23 @@ function ConfigSystem.Save(profileName)
         table.insert(ConfigSystem.Profiles, cleanName)
         ConfigSystem.SaveProfilesList()
     end
+
+    -- Pull fresh live values from all registered UI elements
+    for id, elem in pairs(ConfigSystem._elements) do
+        if elem and elem.Get then
+            pcall(function()
+                local val = elem.Get()
+                if typeof(val) == "Color3" then
+                    ConfigData[id] = { __type = "Color3", r = val.R, g = val.G, b = val.B }
+                elseif typeof(val) == "EnumItem" then
+                    ConfigData[id] = { __type = "EnumItem", enum = tostring(val.EnumType), name = val.Name }
+                elseif val ~= nil then
+                    ConfigData[id] = val
+                end
+            end)
+        end
+    end
+
     if typeof(writefile) ~= "function" then return false, cleanName end
     local ok = pcall(function()
         local savePayload = {
@@ -1350,7 +1367,8 @@ function MultiDropdown.new(parent, config)
         if typeof(arr) == "table" then for _, item in ipairs(arr) do selected[item] = true end end
         valueLabel.Text = getSummary() .. (isOpen and "  ▲" or "  ▼")
         renderOptions()
-        syncState()
+        local list = syncState()
+        if config.Callback then task.spawn(config.Callback, list) end
     end)
 
     return {
