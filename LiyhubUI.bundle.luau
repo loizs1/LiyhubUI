@@ -963,24 +963,39 @@ function Dropdown.new(parent, config)
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 11, MinTextSize = 8, Parent = valueLabel })
 
-    local optContainer = Utility.Create("Frame", {
+    local optContainer = Utility.Create("ScrollingFrame", {
         Size = UDim2.new(1, 0, 0, 0),
         Position = UDim2.new(0, 0, 0, 28),
-        AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Theme.Accent,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
         Visible = false,
         Parent = frame
     })
     Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4), Parent = optContainer })
 
+    local function updateContainerHeight()
+        local count = #options
+        local maxVisible = 6
+        local itemHeight = 24
+        local padding = 4
+        local totalH = count * itemHeight + math.max(0, count - 1) * padding
+        local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding)
+        optContainer.Size = UDim2.new(1, 0, 0, clampedH)
+    end
+
     local function renderOptions()
         for _, c in ipairs(optContainer:GetChildren()) do
             if c:IsA("TextButton") then c:Destroy() end
         end
+        updateContainerHeight()
         for _, opt in ipairs(options) do
             local isCurrent = (opt == selected)
             local itemBtn = Utility.Create("TextButton", {
-                Size = UDim2.new(1, 0, 0, 24),
+                Size = UDim2.new(1, -6, 0, 24),
                 BackgroundColor3 = isCurrent and Theme.SurfaceElevated or Theme.Surface,
                 Font = Enum.Font.Gotham,
                 Text = "  " .. opt,
@@ -995,7 +1010,11 @@ function Dropdown.new(parent, config)
                 selected = opt
                 ConfigData[keyName] = selected
                 ConfigSystem.QueueSave()
-                valueLabel.Text = selected .. (isOpen and "  ▲" or "  ▼")
+                isOpen = false
+                optContainer.Visible = false
+                valueLabel.Text = selected .. "  ▼"
+                stroke.Color = Theme.Border
+                valPillStroke.Color = Theme.Border
                 renderOptions()
                 if config.Callback then task.spawn(config.Callback, selected) end
             end)
