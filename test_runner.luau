@@ -442,8 +442,12 @@ function ConfigSystem.Init(version, customFile)
             end
         end
     end)
-    local startProf = customFile or ConfigSystem.CurrentProfile or "Default"
-    ConfigSystem.Load(startProf)
+    if autoLoad == true then
+        local startProf = customFile or ConfigSystem.CurrentProfile or "Default"
+        ConfigSystem.Load(startProf)
+    else
+        table.clear(ConfigData)
+    end
 end
 
 function ConfigSystem.Register(id, getter, setter)
@@ -1637,7 +1641,8 @@ end
 function NovaUI:CreateWindow(config)
     config = config or {}
     local configVersion = config.Version or 1
-    ConfigSystem.Init(configVersion, config.ConfigName)
+    local autoLoad = (config.AutoLoad == true)
+    ConfigSystem.Init(configVersion, config.ConfigName, autoLoad)
 
     local stealthTag = "RobloxGui_" .. string.sub(HttpService:GenerateGUID(false):gsub("-", ""), 1, 10)
     local sg = Utility.Create("ScreenGui", {
