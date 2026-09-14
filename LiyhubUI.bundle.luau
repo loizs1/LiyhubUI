@@ -926,7 +926,7 @@ function Dropdown.new(parent, config)
     })
 
     local dropLbl = Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -84, 1, 0),
+        Size = UDim2.new(1, -94, 1, 0),
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamMedium,
         Text = keyName,
@@ -935,14 +935,16 @@ function Dropdown.new(parent, config)
         TextScaled = true,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
+        Active = false,
         Parent = header
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = dropLbl })
 
     local valPill = Utility.Create("Frame", {
-        Size = UDim2.new(0, 78, 1, 0),
-        Position = UDim2.new(1, -78, 0, 0),
+        Size = UDim2.new(0, 88, 1, 0),
+        Position = UDim2.new(1, -88, 0, 0),
         BackgroundColor3 = Theme.Surface,
+        Active = false,
         Parent = header
     })
     Utility.AddCorner(valPill, 4)
@@ -959,31 +961,41 @@ function Dropdown.new(parent, config)
         TextScaled = true,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Center,
+        Active = false,
         Parent = valPill
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 11, MinTextSize = 8, Parent = valueLabel })
 
     local optContainer = Utility.Create("ScrollingFrame", {
+        Name = "OptionsList",
         Size = UDim2.new(1, 0, 0, 0),
-        Position = UDim2.new(0, 0, 0, 28),
-        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 0, 0, 30),
+        BackgroundTransparency = 0.05,
+        BackgroundColor3 = Theme.Surface,
         BorderSizePixel = 0,
-        ScrollBarThickness = 3,
+        ScrollBarThickness = 5,
         ScrollBarImageColor3 = Theme.Accent,
+        TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+        BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
         Visible = false,
         Parent = frame
     })
-    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4), Parent = optContainer })
+    Utility.AddCorner(optContainer, 4)
+    Utility.AddStroke(optContainer, Theme.BorderBright, 1)
+    Utility.AddPadding(optContainer, 4, 4, 4, 4)
+    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3), Parent = optContainer })
 
     local function updateContainerHeight()
         local count = #options
-        local maxVisible = 6
-        local itemHeight = 24
-        local padding = 4
-        local totalH = count * itemHeight + math.max(0, count - 1) * padding
-        local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding)
+        local maxVisible = 5
+        local itemHeight = 26
+        local padding = 3
+        local totalH = count * itemHeight + math.max(0, count - 1) * padding + 8
+        local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
         optContainer.Size = UDim2.new(1, 0, 0, clampedH)
     end
 
@@ -995,18 +1007,19 @@ function Dropdown.new(parent, config)
         for _, opt in ipairs(options) do
             local isCurrent = (opt == selected)
             local itemBtn = Utility.Create("TextButton", {
-                Size = UDim2.new(1, -6, 0, 24),
-                BackgroundColor3 = isCurrent and Theme.SurfaceElevated or Theme.Surface,
-                Font = Enum.Font.Gotham,
+                Size = UDim2.new(1, 0, 0, 26),
+                BackgroundColor3 = isCurrent and Theme.Accent or Theme.SurfaceElevated,
+                BackgroundTransparency = isCurrent and 0.15 or 0.7,
+                Font = Enum.Font.GothamMedium,
                 Text = "  " .. opt,
-                TextColor3 = isCurrent and Theme.Accent or Theme.Text,
+                TextColor3 = isCurrent and Color3.fromRGB(255, 255, 255) or Theme.Text,
                 TextSize = 11,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                AutoButtonColor = false,
+                AutoButtonColor = true,
                 Parent = optContainer
             })
             Utility.AddCorner(itemBtn, 4)
-            itemBtn.MouseButton1Click:Connect(function()
+            itemBtn.Activated:Connect(function()
                 selected = opt
                 ConfigData[keyName] = selected
                 ConfigSystem.QueueSave()
@@ -1021,13 +1034,19 @@ function Dropdown.new(parent, config)
         end
     end
 
-    header.MouseButton1Click:Connect(function()
+    local function toggleDropdown()
         isOpen = not isOpen
         optContainer.Visible = isOpen
         valueLabel.Text = selected .. (isOpen and "  ▲" or "  ▼")
         stroke.Color = isOpen and Theme.BorderBright or Theme.Border
         valPillStroke.Color = isOpen and Theme.Accent or Theme.Border
-    end)
+        if isOpen then
+            updateContainerHeight()
+        end
+    end
+
+    header.Activated:Connect(toggleDropdown)
+    header.MouseButton1Click:Connect(toggleDropdown)
 
     renderOptions()
 
