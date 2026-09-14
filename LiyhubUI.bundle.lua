@@ -896,6 +896,8 @@ function Slider.new(parent, config)
 end
 
 -- 4. DROPDOWN (SINGLE-SELECT)
+local ActiveDropdownCloser = nil
+
 local Dropdown = {}
 function Dropdown.new(parent, config)
     local keyName = config.Name or "Dropdown"
@@ -970,24 +972,36 @@ function Dropdown.new(parent, config)
         Name = "OptionsList",
         Size = UDim2.new(1, 0, 0, 0),
         Position = UDim2.new(0, 0, 0, 30),
-        BackgroundTransparency = 0.05,
+        BackgroundTransparency = 0,
         BackgroundColor3 = Theme.Surface,
         BorderSizePixel = 0,
-        ScrollBarThickness = 5,
+        ScrollBarThickness = 4,
         ScrollBarImageColor3 = Theme.Accent,
         TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
         BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
         CanvasSize = UDim2.new(0, 0, 0, 0),
-        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        AutomaticCanvasSize = Enum.AutomaticSize.None,
         ScrollingDirection = Enum.ScrollingDirection.Y,
         VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
         Visible = false,
         Parent = frame
     })
-    Utility.AddCorner(optContainer, 4)
+    Utility.AddCorner(optContainer, 5)
     Utility.AddStroke(optContainer, Theme.BorderBright, 1)
     Utility.AddPadding(optContainer, 4, 4, 4, 4)
     Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3), Parent = optContainer })
+
+    local function closeDropdown()
+        if not isOpen then return end
+        isOpen = false
+        optContainer.Visible = false
+        valueLabel.Text = selected .. "  ▼"
+        stroke.Color = Theme.Border
+        valPillStroke.Color = Theme.Border
+        if ActiveDropdownCloser == closeDropdown then
+            ActiveDropdownCloser = nil
+        end
+    end
 
     local function updateContainerHeight()
         local count = #options
@@ -997,6 +1011,21 @@ function Dropdown.new(parent, config)
         local totalH = count * itemHeight + math.max(0, count - 1) * padding + 8
         local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
         optContainer.Size = UDim2.new(1, 0, 0, clampedH)
+        optContainer.CanvasSize = UDim2.new(0, 0, 0, totalH)
+    end
+
+    local function openDropdown()
+        if isOpen then return end
+        if ActiveDropdownCloser and ActiveDropdownCloser ~= closeDropdown then
+            pcall(ActiveDropdownCloser)
+        end
+        ActiveDropdownCloser = closeDropdown
+        isOpen = true
+        updateContainerHeight()
+        optContainer.Visible = true
+        valueLabel.Text = selected .. "  ▲"
+        stroke.Color = Theme.BorderBright
+        valPillStroke.Color = Theme.Accent
     end
 
     local function renderOptions()
@@ -1009,44 +1038,61 @@ function Dropdown.new(parent, config)
             local itemBtn = Utility.Create("TextButton", {
                 Size = UDim2.new(1, 0, 0, 26),
                 BackgroundColor3 = isCurrent and Theme.Accent or Theme.SurfaceElevated,
-                BackgroundTransparency = isCurrent and 0.15 or 0.7,
-                Font = Enum.Font.GothamMedium,
-                Text = "  " .. opt,
+                BackgroundTransparency = isCurrent and 0.15 or 0.75,
+                Font = isCurrent and Enum.Font.GothamBold or Enum.Font.GothamMedium,
+                Text = (isCurrent and "  ●  " or "      ") .. opt,
                 TextColor3 = isCurrent and Color3.fromRGB(255, 255, 255) or Theme.Text,
                 TextSize = 11,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                AutoButtonColor = true,
+                AutoButtonColor = false,
                 Parent = optContainer
             })
             Utility.AddCorner(itemBtn, 4)
-            itemBtn.Activated:Connect(function()
+
+            itemBtn.MouseEnter:Connect(function()
+                if opt ~= selected then
+                    itemBtn.BackgroundTransparency = 0.35
+                    itemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+            end)
+            itemBtn.MouseLeave:Connect(function()
+                if opt ~= selected then
+                    itemBtn.BackgroundTransparency = 0.75
+                    itemBtn.TextColor3 = Theme.Text
+                end
+            end)
+
+            local selectDebounce = false
+            local function handleSelect()
+                if selectDebounce then return end
+                selectDebounce = true
+                task.delay(0.18, function() selectDebounce = false end)
                 selected = opt
                 ConfigData[keyName] = selected
                 ConfigSystem.QueueSave()
-                isOpen = false
-                optContainer.Visible = false
-                valueLabel.Text = selected .. "  ▼"
-                stroke.Color = Theme.Border
-                valPillStroke.Color = Theme.Border
+                closeDropdown()
                 renderOptions()
                 if config.Callback then task.spawn(config.Callback, selected) end
-            end)
+            end
+            itemBtn.MouseButton1Click:Connect(handleSelect)
+            itemBtn.Activated:Connect(handleSelect)
         end
     end
 
+    local toggleDebounce = false
     local function toggleDropdown()
-        isOpen = not isOpen
-        optContainer.Visible = isOpen
-        valueLabel.Text = selected .. (isOpen and "  ▲" or "  ▼")
-        stroke.Color = isOpen and Theme.BorderBright or Theme.Border
-        valPillStroke.Color = isOpen and Theme.Accent or Theme.Border
+        if toggleDebounce then return end
+        toggleDebounce = true
+        task.delay(0.18, function() toggleDebounce = false end)
         if isOpen then
-            updateContainerHeight()
+            closeDropdown()
+        else
+            openDropdown()
         end
     end
 
-    header.Activated:Connect(toggleDropdown)
     header.MouseButton1Click:Connect(toggleDropdown)
+    header.Activated:Connect(toggleDropdown)
 
     renderOptions()
 
@@ -1113,7 +1159,7 @@ function MultiDropdown.new(parent, config)
     })
 
     local mdropLbl = Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -84, 1, 0),
+        Size = UDim2.new(1, -94, 1, 0),
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamMedium,
         Text = keyName,
@@ -1122,14 +1168,16 @@ function MultiDropdown.new(parent, config)
         TextScaled = true,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
+        Active = false,
         Parent = header
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = mdropLbl })
 
     local valPill = Utility.Create("Frame", {
-        Size = UDim2.new(0, 78, 1, 0),
-        Position = UDim2.new(1, -78, 0, 0),
+        Size = UDim2.new(0, 88, 1, 0),
+        Position = UDim2.new(1, -88, 0, 0),
         BackgroundColor3 = Theme.Surface,
+        Active = false,
         Parent = header
     })
     Utility.AddCorner(valPill, 4)
@@ -1152,19 +1200,70 @@ function MultiDropdown.new(parent, config)
         TextScaled = true,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Center,
+        Active = false,
         Parent = valPill
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 11, MinTextSize = 8, Parent = valueLabel })
 
-    local optContainer = Utility.Create("Frame", {
+    local optContainer = Utility.Create("ScrollingFrame", {
+        Name = "OptionsList",
         Size = UDim2.new(1, 0, 0, 0),
-        Position = UDim2.new(0, 0, 0, 28),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 0, 0, 30),
+        BackgroundColor3 = Theme.Surface,
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = Theme.Accent,
+        TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+        BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.None,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
         Visible = false,
         Parent = frame
     })
-    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4), Parent = optContainer })
+    Utility.AddCorner(optContainer, 5)
+    Utility.AddStroke(optContainer, Theme.BorderBright, 1)
+    Utility.AddPadding(optContainer, 4, 4, 4, 4)
+    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3), Parent = optContainer })
+
+    local function closeDropdown()
+        if not isOpen then return end
+        isOpen = false
+        optContainer.Visible = false
+        valueLabel.Text = getSummary() .. "  ▼"
+        stroke.Color = Theme.Border
+        valPillStroke.Color = Theme.Border
+        if ActiveDropdownCloser == closeDropdown then
+            ActiveDropdownCloser = nil
+        end
+    end
+
+    local function updateContainerHeight()
+        local count = #options
+        local maxVisible = 5
+        local itemHeight = 26
+        local padding = 3
+        local totalH = count * itemHeight + math.max(0, count - 1) * padding + 8
+        local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
+        optContainer.Size = UDim2.new(1, 0, 0, clampedH)
+        optContainer.CanvasSize = UDim2.new(0, 0, 0, totalH)
+    end
+
+    local function openDropdown()
+        if isOpen then return end
+        if ActiveDropdownCloser and ActiveDropdownCloser ~= closeDropdown then
+            pcall(ActiveDropdownCloser)
+        end
+        ActiveDropdownCloser = closeDropdown
+        isOpen = true
+        updateContainerHeight()
+        optContainer.Visible = true
+        valueLabel.Text = getSummary() .. "  ▲"
+        stroke.Color = Theme.BorderBright
+        valPillStroke.Color = Theme.Accent
+    end
 
     local function syncState()
         local list = {}
@@ -1178,12 +1277,14 @@ function MultiDropdown.new(parent, config)
         for _, c in ipairs(optContainer:GetChildren()) do
             if c:IsA("TextButton") then c:Destroy() end
         end
+        updateContainerHeight()
         for _, opt in ipairs(options) do
             local isSel = (selected[opt] == true)
             local itemBtn = Utility.Create("TextButton", {
-                Size = UDim2.new(1, 0, 0, 24),
-                BackgroundColor3 = isSel and Theme.SurfaceElevated or Theme.Surface,
-                Font = Enum.Font.Gotham,
+                Size = UDim2.new(1, 0, 0, 26),
+                BackgroundColor3 = isSel and Theme.SurfaceElevated or Color3.fromRGB(20, 20, 25),
+                BackgroundTransparency = isSel and 0.2 or 0.75,
+                Font = isSel and Enum.Font.GothamBold or Enum.Font.GothamMedium,
                 Text = (isSel and "  ✓  " or "      ") .. opt,
                 TextColor3 = isSel and Theme.Accent or Theme.Text,
                 TextSize = 11,
@@ -1192,23 +1293,50 @@ function MultiDropdown.new(parent, config)
                 Parent = optContainer
             })
             Utility.AddCorner(itemBtn, 4)
-            itemBtn.MouseButton1Click:Connect(function()
+
+            itemBtn.MouseEnter:Connect(function()
+                if not selected[opt] then
+                    itemBtn.BackgroundTransparency = 0.4
+                    itemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+            end)
+            itemBtn.MouseLeave:Connect(function()
+                if not selected[opt] then
+                    itemBtn.BackgroundTransparency = 0.75
+                    itemBtn.TextColor3 = Theme.Text
+                end
+            end)
+
+            local selectDebounce = false
+            local function handleToggle()
+                if selectDebounce then return end
+                selectDebounce = true
+                task.delay(0.18, function() selectDebounce = false end)
                 selected[opt] = not selected[opt]
                 valueLabel.Text = getSummary() .. (isOpen and "  ▲" or "  ▼")
                 local list = syncState()
                 renderOptions()
                 if config.Callback then task.spawn(config.Callback, list) end
-            end)
+            end
+            itemBtn.MouseButton1Click:Connect(handleToggle)
+            itemBtn.Activated:Connect(handleToggle)
         end
     end
 
-    header.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-        optContainer.Visible = isOpen
-        valueLabel.Text = getSummary() .. (isOpen and "  ▲" or "  ▼")
-        stroke.Color = isOpen and Theme.BorderBright or Theme.Border
-        valPillStroke.Color = isOpen and Theme.Accent or Theme.Border
-    end)
+    local toggleDebounce = false
+    local function toggleDropdown()
+        if toggleDebounce then return end
+        toggleDebounce = true
+        task.delay(0.18, function() toggleDebounce = false end)
+        if isOpen then
+            closeDropdown()
+        else
+            openDropdown()
+        end
+    end
+
+    header.MouseButton1Click:Connect(toggleDropdown)
+    header.Activated:Connect(toggleDropdown)
 
     renderOptions()
     syncState()
