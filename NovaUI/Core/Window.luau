@@ -41,6 +41,11 @@ function Window.new(config: Types.WindowConfig)
         return (lp and lp:FindFirstChildOfClass("PlayerGui")) or CoreGui
     end
 
+    if getgenv and getgenv()._LIYHUB_CLEANUP then
+        pcall(getgenv()._LIYHUB_CLEANUP)
+        getgenv()._LIYHUB_CLEANUP = nil
+    end
+
     local stealthName = "RobloxGui_" .. string.sub(game:GetService("HttpService"):GenerateGUID(false):gsub("-", ""), 1, 10)
     self.ScreenGui = Utility.Create("ScreenGui", {
         Name = stealthName,
@@ -49,6 +54,12 @@ function Window.new(config: Types.WindowConfig)
         IgnoreGuiInset = true,
         Parent = getSafeContainer(),
     }) :: ScreenGui
+
+    if getgenv then
+        getgenv()._LIYHUB_CLEANUP = function()
+            pcall(function() self:Destroy() end)
+        end
+    end
 
     if typeof(syn) == "table" and typeof(syn.protect_gui) == "function" then
         pcall(syn.protect_gui, self.ScreenGui)
@@ -153,8 +164,29 @@ function Window.new(config: Types.WindowConfig)
     if config.Subtitle then
         self.Sidebar.SubtitleLabel.Text = config.Subtitle
     end
-    if config.KeyExpiry then
-        self:StartKeyCountdown(config.KeyExpiry)
+    local autoExpiry = config.KeyExpiry
+    if not autoExpiry and getgenv then
+        local g = getgenv()
+        local ts = g.LiyHubExpiryTimestamp or g.ExpiryTimestamp or g.KeyExpiresAt or g.LiyKeyExpiry
+        if not ts and g.LiyHubRemainingSeconds then
+            ts = os.time() + tonumber(g.LiyHubRemainingSeconds)
+        elseif not ts and g.LiyHubRemainingTime then
+            local num = tonumber(tostring(g.LiyHubRemainingTime):match("%d+"))
+            if num then
+                ts = os.time() + (num * 3600)
+            else
+                ts = os.time() + 86400
+            end
+        end
+        if ts then
+            autoExpiry = {
+                Timestamp = ts,
+                Target = "Title"
+            }
+        end
+    end
+    if autoExpiry then
+        self:StartKeyCountdown(autoExpiry)
     end
 
     -- Main Content Area

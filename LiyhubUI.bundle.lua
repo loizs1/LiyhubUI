@@ -1828,6 +1828,11 @@ function NovaUI:CreateWindow(config)
     local autoLoad = (config.AutoLoad == true)
     ConfigSystem.Init(configVersion, config.ConfigName, autoLoad)
 
+    if getgenv and getgenv()._LIYHUB_CLEANUP then
+        pcall(getgenv()._LIYHUB_CLEANUP)
+        getgenv()._LIYHUB_CLEANUP = nil
+    end
+
     local stealthTag = "RobloxGui_" .. string.sub(HttpService:GenerateGUID(false):gsub("-", ""), 1, 10)
     local sg = Utility.Create("ScreenGui", {
         Name = stealthTag,
@@ -2951,8 +2956,30 @@ function NovaUI:CreateWindow(config)
         }
     end
 
-    if config.KeyExpiry then
-        windowObj:StartKeyCountdown(config.KeyExpiry)
+    local autoExpiry = config.KeyExpiry
+    if not autoExpiry and getgenv then
+        local g = getgenv()
+        local ts = g.LiyHubExpiryTimestamp or g.ExpiryTimestamp or g.KeyExpiresAt or g.LiyKeyExpiry
+        if not ts and g.LiyHubRemainingSeconds then
+            ts = os.time() + tonumber(g.LiyHubRemainingSeconds)
+        elseif not ts and g.LiyHubRemainingTime then
+            local num = tonumber(tostring(g.LiyHubRemainingTime):match("%d+"))
+            if num then
+                ts = os.time() + (num * 3600)
+            else
+                ts = os.time() + 86400
+            end
+        end
+        if ts then
+            autoExpiry = {
+                Timestamp = ts,
+                Target = "Title"
+            }
+        end
+    end
+
+    if autoExpiry then
+        windowObj:StartKeyCountdown(autoExpiry)
     end
 
     function windowObj:Toggle(force) toggleWindow(force) end
