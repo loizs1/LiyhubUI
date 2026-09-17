@@ -233,6 +233,18 @@ function Window:CloseSettings()
     end
 end
 
+function Window:SetTitle(title: string)
+    if self.Sidebar and self.Sidebar.TitleLabel then
+        self.Sidebar.TitleLabel.Text = title
+    end
+end
+
+function Window:SetSubtitle(subtitle: string)
+    if self.Sidebar and self.Sidebar.SubtitleLabel then
+        self.Sidebar.SubtitleLabel.Text = subtitle
+    end
+end
+
 function Window:SetProfileVisible(visible: boolean)
     self.Sidebar:SetProfileVisible(visible)
 end

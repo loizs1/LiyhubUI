@@ -102,6 +102,85 @@ end
 
 ---
 
+## ⏳ Key Expiry & Live Countdown (2 Cara Penerapan)
+
+Tampilkan durasi expired / sisa masa aktif key secara real-time detik demi detik dengan dua metode penerapan:
+
+### Cara 1: Langsung di Title (Samping Nama Game)
+Menggabungkan nama game dan sisa waktu aktif di judul utama.
+
+```luau
+local gameName = "Blox Fruits"
+local remaining = getgenv().LiyHubRemainingTime or "24 Jam"
+
+local Window = Liyhub:CreateWindow({
+    Title = gameName .. " | " .. remaining,
+    Subtitle = "LiyHub Universal",
+    Size = UDim2.fromOffset(750, 500),
+    Theme = "Midnight",
+    Resizable = true,
+    Draggable = true,
+})
+
+-- Live countdown detik demi detik di Title:
+task.spawn(function()
+    local secs = getgenv().LiyHubRemainingSeconds or 86400
+    while secs > 0 do
+        task.wait(1)
+        secs = secs - 1
+        local h = math.floor(secs / 3600)
+        local m = math.floor((secs % 3600) / 60)
+        local s = secs % 60
+        Window:SetTitle(string.format("%s | %02dj %02dm %02dd", gameName, h, m, s))
+    end
+    Window:SetTitle(gameName .. " | EXPIRED")
+    if Window.Sidebar and Window.Sidebar.TitleLabel then
+        Window.Sidebar.TitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+    end
+end)
+```
+
+### Cara 2: Di Subtitle (Bawah Judul — Lebih Rapi)
+Menjaga judul tetap bersih menampilkan nama game, sementara countdown live berjalan di subtitle.
+
+```luau
+local gameName = "Blox Fruits"
+local remaining = getgenv().LiyHubRemainingTime or "24 Jam"
+
+local Window = Liyhub:CreateWindow({
+    Title = gameName,
+    Subtitle = "Expiry: " .. remaining,
+    Size = UDim2.fromOffset(750, 500),
+    Theme = "Midnight",
+    Resizable = true,
+    Draggable = true,
+})
+
+-- Live countdown detik demi detik di Subtitle:
+task.spawn(function()
+    local secs = getgenv().LiyHubRemainingSeconds or 86400
+    while secs > 0 do
+        task.wait(1)
+        secs = secs - 1
+        local h = math.floor(secs / 3600)
+        local m = math.floor((secs % 3600) / 60)
+        local s = secs % 60
+        Window:SetSubtitle(string.format("Expiry: %02dj %02dm %02dd", h, m, s))
+    end
+    Window:SetSubtitle("KEY EXPIRED")
+    if Window.Sidebar and Window.Sidebar.SubtitleLabel then
+        Window.Sidebar.SubtitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+    end
+end)
+```
+
+- **API Methods Tersedia**:
+  - `Window:SetTitle(text)` / `Window.Sidebar.TitleLabel.Text = text`
+  - `Window:SetSubtitle(text)` / `Window.Sidebar.SubtitleLabel.Text = text`
+
+
+---
+
 ## 📱 Mobile Pin Tab (Floating Toggle)
 
 Khusus pengguna mobile atau touch screen (dan desktop):

@@ -2028,7 +2028,7 @@ function NovaUI:CreateWindow(config)
         Parent = leftHeader
     })
 
-    Utility.Create("TextLabel", {
+    local titleLabel = Utility.Create("TextLabel", {
         Name = "TitleLabel",
         LayoutOrder = 1,
         Size = UDim2.new(0, 0, 1, 0),
@@ -2043,10 +2043,27 @@ function NovaUI:CreateWindow(config)
         Parent = leftHeader
     })
 
+    local subtitleText = config.Subtitle or ""
+    local subtitleLabel = Utility.Create("TextLabel", {
+        Name = "SubtitleLabel",
+        LayoutOrder = 2,
+        Size = UDim2.new(0, 0, 1, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamMedium,
+        Text = subtitleText,
+        TextColor3 = Theme.TextSecondary,
+        TextSize = 11,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Visible = (subtitleText ~= ""),
+        Parent = leftHeader
+    })
+
     -- Live Status Indicator Badge
     local statusBadge = Utility.Create("Frame", {
         Name = "StatusBadge",
-        LayoutOrder = 2,
+        LayoutOrder = 3,
         Size = UDim2.new(0, 72, 0, 20),
         BackgroundColor3 = Theme.SurfaceSecondary,
         BorderSizePixel = 0,
@@ -2078,7 +2095,7 @@ function NovaUI:CreateWindow(config)
 
     local verBadge = Utility.Create("Frame", {
         Name = "VerBadge",
-        LayoutOrder = 3,
+        LayoutOrder = 4,
         Size = UDim2.new(0, 36, 0, 20),
         BackgroundColor3 = Theme.SurfaceSecondary,
         BorderSizePixel = 0,
@@ -2827,6 +2844,25 @@ function NovaUI:CreateWindow(config)
 
         if #tabs == 1 then select() end
         return newTab
+    end
+
+    windowObj.TitleLabel = titleLabel
+    windowObj.SubtitleLabel = subtitleLabel
+    windowObj.Sidebar = {
+        TitleLabel = titleLabel,
+        SubtitleLabel = subtitleLabel,
+    }
+
+    function windowObj:SetTitle(newTitle)
+        if titleLabel then
+            titleLabel.Text = tostring(newTitle or "")
+        end
+    end
+    function windowObj:SetSubtitle(newSub)
+        if subtitleLabel then
+            subtitleLabel.Text = tostring(newSub or "")
+            subtitleLabel.Visible = (newSub ~= nil and tostring(newSub) ~= "")
+        end
     end
 
     function windowObj:Toggle(force) toggleWindow(force) end
