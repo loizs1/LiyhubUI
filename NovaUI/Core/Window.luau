@@ -41,11 +41,6 @@ function Window.new(config: Types.WindowConfig)
         return (lp and lp:FindFirstChildOfClass("PlayerGui")) or CoreGui
     end
 
-    if getgenv and getgenv()._LIYHUB_CLEANUP then
-        pcall(getgenv()._LIYHUB_CLEANUP)
-        getgenv()._LIYHUB_CLEANUP = nil
-    end
-
     local stealthName = "RobloxGui_" .. string.sub(game:GetService("HttpService"):GenerateGUID(false):gsub("-", ""), 1, 10)
     self.ScreenGui = Utility.Create("ScreenGui", {
         Name = stealthName,
@@ -54,12 +49,6 @@ function Window.new(config: Types.WindowConfig)
         IgnoreGuiInset = true,
         Parent = getSafeContainer(),
     }) :: ScreenGui
-
-    if getgenv then
-        getgenv()._LIYHUB_CLEANUP = function()
-            pcall(function() self:Destroy() end)
-        end
-    end
 
     if typeof(syn) == "table" and typeof(syn.protect_gui) == "function" then
         pcall(syn.protect_gui, self.ScreenGui)
@@ -164,30 +153,6 @@ function Window.new(config: Types.WindowConfig)
     if config.Subtitle then
         self.Sidebar.SubtitleLabel.Text = config.Subtitle
     end
-    local autoExpiry = config.KeyExpiry
-    if not autoExpiry and getgenv then
-        local g = getgenv()
-        local ts = g.LiyHubExpiryTimestamp or g.ExpiryTimestamp or g.KeyExpiresAt or g.LiyKeyExpiry
-        if not ts and g.LiyHubRemainingSeconds then
-            ts = os.time() + tonumber(g.LiyHubRemainingSeconds)
-        elseif not ts and g.LiyHubRemainingTime then
-            local num = tonumber(tostring(g.LiyHubRemainingTime):match("%d+"))
-            if num then
-                ts = os.time() + (num * 3600)
-            else
-                ts = os.time() + 86400
-            end
-        end
-        if ts then
-            autoExpiry = {
-                Timestamp = ts,
-                Target = "Title"
-            }
-        end
-    end
-    if autoExpiry then
-        self:StartKeyCountdown(autoExpiry)
-    end
 
     -- Main Content Area
     self.ContentArea = Utility.Create("Frame", {
@@ -268,112 +233,11 @@ function Window:CloseSettings()
     end
 end
 
-function Window:SetTitle(title: string)
-    if self.Sidebar and self.Sidebar.TitleLabel then
-        self.Sidebar.TitleLabel.Text = title
-    end
-end
-
-function Window:SetSubtitle(subtitle: string)
-    if self.Sidebar and self.Sidebar.SubtitleLabel then
-        self.Sidebar.SubtitleLabel.Text = subtitle
-    end
-end
-
 function Window:SetProfileVisible(visible: boolean)
     self.Sidebar:SetProfileVisible(visible)
 end
 
-function Window:StartKeyCountdown(opt)
-    if self._countdownThread then
-        task.cancel(self._countdownThread)
-        self._countdownThread = nil
-    end
-
-    local timestamp = 0
-    local target = "Title"
-    local prefix = nil
-    local onExpired = nil
-
-    if typeof(opt) == "number" then
-        timestamp = opt
-    elseif typeof(opt) == "table" then
-        timestamp = tonumber(opt.Timestamp or opt.Expiry or opt.ExpiresAt) or 0
-        target = opt.Target or "Title"
-        prefix = opt.Prefix
-        onExpired = opt.OnExpired
-    end
-
-    if not prefix then
-        if target == "Subtitle" then
-            prefix = "Expiry: "
-        else
-            local curTitle = self.Sidebar and self.Sidebar.TitleLabel and self.Sidebar.TitleLabel.Text or "LiyHub"
-            prefix = curTitle:gsub(" %| .*$", "")
-        end
-    end
-
-    self._countdownThread = task.spawn(function()
-        while true do
-            local remaining = timestamp - os.time()
-            if remaining <= 0 then
-                if target == "Subtitle" then
-                    self:SetSubtitle("KEY EXPIRED")
-                    if self.Sidebar and self.Sidebar.SubtitleLabel then
-                        self.Sidebar.SubtitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
-                    end
-                else
-                    self:SetTitle(prefix .. " | EXPIRED")
-                    if self.Sidebar and self.Sidebar.TitleLabel then
-                        self.Sidebar.TitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
-                    end
-                end
-                if typeof(onExpired) == "function" then
-                    pcall(onExpired)
-                end
-                break
-            end
-
-            local d = math.floor(remaining / 86400)
-            local h = math.floor((remaining % 86400) / 3600)
-            local m = math.floor((remaining % 3600) / 60)
-            local s = remaining % 60
-
-            local timeStr
-            if d > 0 then
-                timeStr = string.format("%dd %02dj %02dm", d, h, m)
-            else
-                timeStr = string.format("%02dj %02dm %02dd", h, m, s)
-            end
-
-            if target == "Subtitle" then
-                self:SetSubtitle(prefix .. timeStr)
-            else
-                self:SetTitle(prefix .. " | " .. timeStr)
-            end
-
-            task.wait(1)
-        end
-    end)
-
-    return {
-        Stop = function()
-            if self._countdownThread then
-                task.cancel(self._countdownThread)
-                self._countdownThread = nil
-            end
-        end,
-        SetTimestamp = function(newTs)
-            timestamp = tonumber(newTs) or timestamp
-        end
-    }
-end
-
 function Window:Destroy()
-    if self._countdownThread then
-        task.cancel(self._countdownThread)
-        self._countdownThread = nil
-    end
     self._maid:Destroy()
     self.Sidebar:Destroy()
     self.SettingsView:Destroy()

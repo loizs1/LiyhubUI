@@ -1893,12 +1893,12 @@ function NovaUI:CreateWindow(config)
     end
 
     local titleText = config.Title
-    if not titleText or titleText == "" or titleText == "LiyHub" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
+    if not titleText or titleText == "" then
+        titleText = "LiyHub | " .. DetectedGameName
+    elseif titleText == "LiyHub" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
         titleText = "LiyHub | " .. DetectedGameName
     elseif titleText:find("{game}") then
         titleText = titleText:gsub("{game}", DetectedGameName)
-    elseif not titleText:find("|") and not titleText:lower():find(DetectedGameName:lower()) then
-        titleText = titleText .. " | " .. DetectedGameName
     end
     if config.Footer and config.Footer ~= "" then
         titleText = titleText .. " " .. config.Footer
