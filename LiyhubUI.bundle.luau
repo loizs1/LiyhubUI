@@ -1828,11 +1828,6 @@ function NovaUI:CreateWindow(config)
     local autoLoad = (config.AutoLoad == true)
     ConfigSystem.Init(configVersion, config.ConfigName, autoLoad)
 
-    if getgenv and getgenv()._LIYHUB_CLEANUP then
-        pcall(getgenv()._LIYHUB_CLEANUP)
-        getgenv()._LIYHUB_CLEANUP = nil
-    end
-
     local stealthTag = "RobloxGui_" .. string.sub(HttpService:GenerateGUID(false):gsub("-", ""), 1, 10)
     local sg = Utility.Create("ScreenGui", {
         Name = stealthTag,
@@ -2033,7 +2028,7 @@ function NovaUI:CreateWindow(config)
         Parent = leftHeader
     })
 
-    local titleLabel = Utility.Create("TextLabel", {
+    Utility.Create("TextLabel", {
         Name = "TitleLabel",
         LayoutOrder = 1,
         Size = UDim2.new(0, 0, 1, 0),
@@ -2048,27 +2043,10 @@ function NovaUI:CreateWindow(config)
         Parent = leftHeader
     })
 
-    local subtitleText = config.Subtitle or ""
-    local subtitleLabel = Utility.Create("TextLabel", {
-        Name = "SubtitleLabel",
-        LayoutOrder = 2,
-        Size = UDim2.new(0, 0, 1, 0),
-        AutomaticSize = Enum.AutomaticSize.X,
-        BackgroundTransparency = 1,
-        Font = Enum.Font.GothamMedium,
-        Text = subtitleText,
-        TextColor3 = Theme.TextSecondary,
-        TextSize = 11,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Visible = (subtitleText ~= ""),
-        Parent = leftHeader
-    })
-
     -- Live Status Indicator Badge
     local statusBadge = Utility.Create("Frame", {
         Name = "StatusBadge",
-        LayoutOrder = 3,
+        LayoutOrder = 2,
         Size = UDim2.new(0, 72, 0, 20),
         BackgroundColor3 = Theme.SurfaceSecondary,
         BorderSizePixel = 0,
@@ -2100,7 +2078,7 @@ function NovaUI:CreateWindow(config)
 
     local verBadge = Utility.Create("Frame", {
         Name = "VerBadge",
-        LayoutOrder = 4,
+        LayoutOrder = 3,
         Size = UDim2.new(0, 36, 0, 20),
         BackgroundColor3 = Theme.SurfaceSecondary,
         BorderSizePixel = 0,
@@ -2849,137 +2827,6 @@ function NovaUI:CreateWindow(config)
 
         if #tabs == 1 then select() end
         return newTab
-    end
-
-    windowObj.TitleLabel = titleLabel
-    windowObj.SubtitleLabel = subtitleLabel
-    windowObj.Sidebar = {
-        TitleLabel = titleLabel,
-        SubtitleLabel = subtitleLabel,
-    }
-
-    function windowObj:SetTitle(newTitle)
-        if titleLabel then
-            titleLabel.Text = tostring(newTitle or "")
-        end
-    end
-    function windowObj:SetSubtitle(newSub)
-        if subtitleLabel then
-            subtitleLabel.Text = tostring(newSub or "")
-            subtitleLabel.Visible = (newSub ~= nil and tostring(newSub) ~= "")
-        end
-    end
-
-    local countdownThread = nil
-    function windowObj:StartKeyCountdown(opt)
-        if countdownThread then
-            task.cancel(countdownThread)
-            countdownThread = nil
-        end
-
-        local timestamp = 0
-        local target = "Title"
-        local prefix = nil
-        local onExpired = nil
-
-        if typeof(opt) == "number" then
-            timestamp = opt
-        elseif typeof(opt) == "table" then
-            timestamp = tonumber(opt.Timestamp or opt.Expiry or opt.ExpiresAt) or 0
-            target = opt.Target or "Title"
-            prefix = opt.Prefix
-            onExpired = opt.OnExpired
-        end
-
-        if not prefix then
-            if target == "Subtitle" then
-                prefix = "Expiry: "
-            else
-                local curTitle = titleLabel and titleLabel.Text or tostring(config.Title or "LiyHub")
-                prefix = curTitle:gsub(" %| .*$", "")
-            end
-        end
-
-        countdownThread = task.spawn(function()
-            while true do
-                local remaining = timestamp - os.time()
-                if remaining <= 0 then
-                    if target == "Subtitle" then
-                        windowObj:SetSubtitle("KEY EXPIRED")
-                        if subtitleLabel then
-                            subtitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
-                        end
-                    else
-                        windowObj:SetTitle(prefix .. " | EXPIRED")
-                        if titleLabel then
-                            titleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
-                        end
-                    end
-                    if typeof(onExpired) == "function" then
-                        pcall(onExpired)
-                    end
-                    break
-                end
-
-                local d = math.floor(remaining / 86400)
-                local h = math.floor((remaining % 86400) / 3600)
-                local m = math.floor((remaining % 3600) / 60)
-                local s = remaining % 60
-
-                local timeStr
-                if d > 0 then
-                    timeStr = string.format("%dd %02dj %02dm", d, h, m)
-                else
-                    timeStr = string.format("%02dj %02dm %02dd", h, m, s)
-                end
-
-                if target == "Subtitle" then
-                    windowObj:SetSubtitle(prefix .. timeStr)
-                else
-                    windowObj:SetTitle(prefix .. " | " .. timeStr)
-                end
-
-                task.wait(1)
-            end
-        end)
-
-        return {
-            Stop = function()
-                if countdownThread then
-                    task.cancel(countdownThread)
-                    countdownThread = nil
-                end
-            end,
-            SetTimestamp = function(newTs)
-                timestamp = tonumber(newTs) or timestamp
-            end
-        }
-    end
-
-    local autoExpiry = config.KeyExpiry
-    if not autoExpiry and getgenv then
-        local g = getgenv()
-        local ts = g.LiyHubExpiryTimestamp or g.ExpiryTimestamp or g.KeyExpiresAt or g.LiyKeyExpiry
-        if not ts and g.LiyHubRemainingSeconds then
-            ts = os.time() + tonumber(g.LiyHubRemainingSeconds)
-        elseif not ts and g.LiyHubRemainingTime then
-            local num = tonumber(tostring(g.LiyHubRemainingTime):match("%d+"))
-            if num then
-                ts = os.time() + (num * 3600)
-            else
-                ts = os.time() + 86400
-            end
-        end
-        if ts then
-            autoExpiry = {
-                Timestamp = ts,
-                Target = "Title"
-            }
-        end
-    end
-
-    if autoExpiry then
-        windowObj:StartKeyCountdown(autoExpiry)
     end
 
     function windowObj:Toggle(force) toggleWindow(force) end
