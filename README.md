@@ -102,74 +102,109 @@ end
 
 ---
 
-## ⏳ Key Expiry & Live Countdown (2 Cara Penerapan)
+## ⏳ Key Expiry & Live Countdown (Built-in & Real-Time Sync)
 
-Tampilkan durasi expired / sisa masa aktif key secara real-time detik demi detik dengan dua metode penerapan:
+Tampilkan durasi expired / sisa masa aktif key secara real-time detik demi detik dengan sinkronisasi timestamp epoch server (`os.time()`):
 
-### Cara 1: Langsung di Title (Samping Nama Game)
-Menggabungkan nama game dan sisa waktu aktif di judul utama.
+### Cara 1: Built-in Otomatis via `KeyExpiry` (Direkomendasikan)
+Cukup berikan epoch timestamp server di `CreateWindow`. Engine LiyhubUI otomatis menghitung mundur secara real-time dan menangani status expired.
 
 ```luau
-local gameName = "Blox Fruits"
-local remaining = getgenv().LiyHubRemainingTime or "24 Jam"
+local expiryTimestamp = getgenv().LiyHubExpiryTimestamp or (os.time() + 86400) -- Target epoch dari key server
 
 local Window = Liyhub:CreateWindow({
-    Title = gameName .. " | " .. remaining,
+    Title = "Blox Fruits",
     Subtitle = "LiyHub Universal",
     Size = UDim2.fromOffset(750, 500),
     Theme = "Midnight",
-    Resizable = true,
-    Draggable = true,
+    KeyExpiry = {
+        Timestamp = expiryTimestamp,
+        Target = "Title", -- "Title" (Judul | 01d 02j 30m) atau "Subtitle" (Expiry: 01d 02j 30m)
+        OnExpired = function()
+            -- Callback saat key expired
+        end
+    }
+})
+```
+
+### Cara 2: Live Server Sync di Title (Manual)
+Sinkronisasi langsung waktu server menggunakan selisih epoch `expiryTimestamp - os.time()`:
+
+```luau
+local gameName = "Blox Fruits"
+local expiryTimestamp = getgenv().LiyHubExpiryTimestamp or (os.time() + 86400)
+
+local Window = Liyhub:CreateWindow({
+    Title = gameName .. " | Syncing...",
+    Subtitle = "LiyHub Universal",
+    Size = UDim2.fromOffset(750, 500),
+    Theme = "Midnight",
 })
 
--- Live countdown detik demi detik di Title:
 task.spawn(function()
-    local secs = getgenv().LiyHubRemainingSeconds or 86400
-    while secs > 0 do
+    while true do
+        local remaining = expiryTimestamp - os.time()
+        if remaining <= 0 then
+            Window:SetTitle(gameName .. " | EXPIRED")
+            if Window.Sidebar and Window.Sidebar.TitleLabel then
+                Window.Sidebar.TitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+            end
+            break
+        end
+
+        local d = math.floor(remaining / 86400)
+        local h = math.floor((remaining % 86400) / 3600)
+        local m = math.floor((remaining % 3600) / 60)
+        local s = remaining % 60
+
+        if d > 0 then
+            Window:SetTitle(string.format("%s | %dd %02dj %02dm", gameName, d, h, m))
+        else
+            Window:SetTitle(string.format("%s | %02dj %02dm %02dd", gameName, h, m, s))
+        end
+
         task.wait(1)
-        secs = secs - 1
-        local h = math.floor(secs / 3600)
-        local m = math.floor((secs % 3600) / 60)
-        local s = secs % 60
-        Window:SetTitle(string.format("%s | %02dj %02dm %02dd", gameName, h, m, s))
-    end
-    Window:SetTitle(gameName .. " | EXPIRED")
-    if Window.Sidebar and Window.Sidebar.TitleLabel then
-        Window.Sidebar.TitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
     end
 end)
 ```
 
-### Cara 2: Di Subtitle (Bawah Judul — Lebih Rapi)
-Menjaga judul tetap bersih menampilkan nama game, sementara countdown live berjalan di subtitle.
+### Cara 3: Live Server Sync di Subtitle (Manual)
+Menjaga judul tetap bersih menampilkan nama game, countdown live berjalan di Subtitle:
 
 ```luau
 local gameName = "Blox Fruits"
-local remaining = getgenv().LiyHubRemainingTime or "24 Jam"
+local expiryTimestamp = getgenv().LiyHubExpiryTimestamp or (os.time() + 86400)
 
 local Window = Liyhub:CreateWindow({
     Title = gameName,
-    Subtitle = "Expiry: " .. remaining,
+    Subtitle = "Expiry: Syncing...",
     Size = UDim2.fromOffset(750, 500),
     Theme = "Midnight",
-    Resizable = true,
-    Draggable = true,
 })
 
--- Live countdown detik demi detik di Subtitle:
 task.spawn(function()
-    local secs = getgenv().LiyHubRemainingSeconds or 86400
-    while secs > 0 do
+    while true do
+        local remaining = expiryTimestamp - os.time()
+        if remaining <= 0 then
+            Window:SetSubtitle("KEY EXPIRED")
+            if Window.Sidebar and Window.Sidebar.SubtitleLabel then
+                Window.Sidebar.SubtitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+            end
+            break
+        end
+
+        local d = math.floor(remaining / 86400)
+        local h = math.floor((remaining % 86400) / 3600)
+        local m = math.floor((remaining % 3600) / 60)
+        local s = remaining % 60
+
+        if d > 0 then
+            Window:SetSubtitle(string.format("Expiry: %dd %02dj %02dm", d, h, m))
+        else
+            Window:SetSubtitle(string.format("Expiry: %02dj %02dm %02dd", h, m, s))
+        end
+
         task.wait(1)
-        secs = secs - 1
-        local h = math.floor(secs / 3600)
-        local m = math.floor((secs % 3600) / 60)
-        local s = secs % 60
-        Window:SetSubtitle(string.format("Expiry: %02dj %02dm %02dd", h, m, s))
-    end
-    Window:SetSubtitle("KEY EXPIRED")
-    if Window.Sidebar and Window.Sidebar.SubtitleLabel then
-        Window.Sidebar.SubtitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
     end
 end)
 ```
@@ -177,6 +212,7 @@ end)
 - **API Methods Tersedia**:
   - `Window:SetTitle(text)` / `Window.Sidebar.TitleLabel.Text = text`
   - `Window:SetSubtitle(text)` / `Window.Sidebar.SubtitleLabel.Text = text`
+  - `Window:StartKeyCountdown({ Timestamp = number, Target = "Title" | "Subtitle", OnExpired = function })`
 
 
 ---

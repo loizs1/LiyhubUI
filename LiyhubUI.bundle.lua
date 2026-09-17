@@ -2865,6 +2865,96 @@ function NovaUI:CreateWindow(config)
         end
     end
 
+    local countdownThread = nil
+    function windowObj:StartKeyCountdown(opt)
+        if countdownThread then
+            task.cancel(countdownThread)
+            countdownThread = nil
+        end
+
+        local timestamp = 0
+        local target = "Title"
+        local prefix = nil
+        local onExpired = nil
+
+        if typeof(opt) == "number" then
+            timestamp = opt
+        elseif typeof(opt) == "table" then
+            timestamp = tonumber(opt.Timestamp or opt.Expiry or opt.ExpiresAt) or 0
+            target = opt.Target or "Title"
+            prefix = opt.Prefix
+            onExpired = opt.OnExpired
+        end
+
+        if not prefix then
+            if target == "Subtitle" then
+                prefix = "Expiry: "
+            else
+                local curTitle = titleLabel and titleLabel.Text or tostring(config.Title or "LiyHub")
+                prefix = curTitle:gsub(" %| .*$", "")
+            end
+        end
+
+        countdownThread = task.spawn(function()
+            while true do
+                local remaining = timestamp - os.time()
+                if remaining <= 0 then
+                    if target == "Subtitle" then
+                        windowObj:SetSubtitle("KEY EXPIRED")
+                        if subtitleLabel then
+                            subtitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+                        end
+                    else
+                        windowObj:SetTitle(prefix .. " | EXPIRED")
+                        if titleLabel then
+                            titleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+                        end
+                    end
+                    if typeof(onExpired) == "function" then
+                        pcall(onExpired)
+                    end
+                    break
+                end
+
+                local d = math.floor(remaining / 86400)
+                local h = math.floor((remaining % 86400) / 3600)
+                local m = math.floor((remaining % 3600) / 60)
+                local s = remaining % 60
+
+                local timeStr
+                if d > 0 then
+                    timeStr = string.format("%dd %02dj %02dm", d, h, m)
+                else
+                    timeStr = string.format("%02dj %02dm %02dd", h, m, s)
+                end
+
+                if target == "Subtitle" then
+                    windowObj:SetSubtitle(prefix .. timeStr)
+                else
+                    windowObj:SetTitle(prefix .. " | " .. timeStr)
+                end
+
+                task.wait(1)
+            end
+        end)
+
+        return {
+            Stop = function()
+                if countdownThread then
+                    task.cancel(countdownThread)
+                    countdownThread = nil
+                end
+            end,
+            SetTimestamp = function(newTs)
+                timestamp = tonumber(newTs) or timestamp
+            end
+        }
+    end
+
+    if config.KeyExpiry then
+        windowObj:StartKeyCountdown(config.KeyExpiry)
+    end
+
     function windowObj:Toggle(force) toggleWindow(force) end
     function windowObj:SetPinVisible(v)
         isPinned = v

@@ -153,6 +153,9 @@ function Window.new(config: Types.WindowConfig)
     if config.Subtitle then
         self.Sidebar.SubtitleLabel.Text = config.Subtitle
     end
+    if config.KeyExpiry then
+        self:StartKeyCountdown(config.KeyExpiry)
+    end
 
     -- Main Content Area
     self.ContentArea = Utility.Create("Frame", {
@@ -249,7 +252,96 @@ function Window:SetProfileVisible(visible: boolean)
     self.Sidebar:SetProfileVisible(visible)
 end
 
+function Window:StartKeyCountdown(opt)
+    if self._countdownThread then
+        task.cancel(self._countdownThread)
+        self._countdownThread = nil
+    end
+
+    local timestamp = 0
+    local target = "Title"
+    local prefix = nil
+    local onExpired = nil
+
+    if typeof(opt) == "number" then
+        timestamp = opt
+    elseif typeof(opt) == "table" then
+        timestamp = tonumber(opt.Timestamp or opt.Expiry or opt.ExpiresAt) or 0
+        target = opt.Target or "Title"
+        prefix = opt.Prefix
+        onExpired = opt.OnExpired
+    end
+
+    if not prefix then
+        if target == "Subtitle" then
+            prefix = "Expiry: "
+        else
+            local curTitle = self.Sidebar and self.Sidebar.TitleLabel and self.Sidebar.TitleLabel.Text or "LiyHub"
+            prefix = curTitle:gsub(" %| .*$", "")
+        end
+    end
+
+    self._countdownThread = task.spawn(function()
+        while true do
+            local remaining = timestamp - os.time()
+            if remaining <= 0 then
+                if target == "Subtitle" then
+                    self:SetSubtitle("KEY EXPIRED")
+                    if self.Sidebar and self.Sidebar.SubtitleLabel then
+                        self.Sidebar.SubtitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+                    end
+                else
+                    self:SetTitle(prefix .. " | EXPIRED")
+                    if self.Sidebar and self.Sidebar.TitleLabel then
+                        self.Sidebar.TitleLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+                    end
+                end
+                if typeof(onExpired) == "function" then
+                    pcall(onExpired)
+                end
+                break
+            end
+
+            local d = math.floor(remaining / 86400)
+            local h = math.floor((remaining % 86400) / 3600)
+            local m = math.floor((remaining % 3600) / 60)
+            local s = remaining % 60
+
+            local timeStr
+            if d > 0 then
+                timeStr = string.format("%dd %02dj %02dm", d, h, m)
+            else
+                timeStr = string.format("%02dj %02dm %02dd", h, m, s)
+            end
+
+            if target == "Subtitle" then
+                self:SetSubtitle(prefix .. timeStr)
+            else
+                self:SetTitle(prefix .. " | " .. timeStr)
+            end
+
+            task.wait(1)
+        end
+    end)
+
+    return {
+        Stop = function()
+            if self._countdownThread then
+                task.cancel(self._countdownThread)
+                self._countdownThread = nil
+            end
+        end,
+        SetTimestamp = function(newTs)
+            timestamp = tonumber(newTs) or timestamp
+        end
+    }
+end
+
 function Window:Destroy()
+    if self._countdownThread then
+        task.cancel(self._countdownThread)
+        self._countdownThread = nil
+    end
     self._maid:Destroy()
     self.Sidebar:Destroy()
     self.SettingsView:Destroy()
