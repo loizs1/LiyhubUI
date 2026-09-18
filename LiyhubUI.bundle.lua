@@ -236,32 +236,62 @@ function Utility.CreateLiyhubMark(parent, size, posX, posY, overrideLogo)
     Utility.AddCorner(orb, orbSize / 2)
     return root
 end
-function Utility.MakeDraggable(gui, dragPart)
-    local dragging, dragStart, startPos
+function Utility.MakeDraggable(gui, dragPart, ignoreElement)
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    local dragThreshold = 10 -- Minimum movement threshold: prevents mobile tap jitter from cancelling button clicks
+
     dragPart.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
+            -- Bypass dragging completely if touch/click originated within interactive controls (Minimize, Pin, Close)
+            if ignoreElement and ignoreElement.Parent then
+                local p = input.Position
+                local igPos = ignoreElement.AbsolutePosition
+                local igSize = ignoreElement.AbsoluteSize
+                if p.X >= igPos.X - 6 and p.X <= igPos.X + igSize.X + 6 and
+                   p.Y >= igPos.Y - 6 and p.Y <= igPos.Y + igSize.Y + 6 then
+                    return
+                end
+            end
+
             dragStart = input.Position
             startPos = gui.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            dragging = false
+
+            local conn
+            conn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    dragStart = nil
+                    if conn then conn:Disconnect() end
+                end
             end)
         end
     end)
+
     UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        if dragStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
-            local camera = workspace.CurrentCamera
-            local vp = camera and camera.ViewportSize or Vector2.new(1920, 1080)
-            local guiSize = gui.AbsoluteSize
-            local targetX = math.clamp(startPos.X.Offset + delta.X, -startPos.X.Scale * vp.X + 8, (1 - startPos.X.Scale) * vp.X - guiSize.X - 8)
-            local targetY = math.clamp(startPos.Y.Offset + delta.Y, -startPos.Y.Scale * vp.Y + 8, (1 - startPos.Y.Scale) * vp.Y - guiSize.Y - 8)
-            gui.Position = UDim2.new(startPos.X.Scale, targetX, startPos.Y.Scale, targetY)
+            if not dragging and delta.Magnitude > dragThreshold then
+                dragging = true
+            end
+
+            if dragging and startPos then
+                local camera = workspace.CurrentCamera
+                local vp = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+                local guiSize = gui.AbsoluteSize
+                local targetX = math.clamp(startPos.X.Offset + delta.X, -startPos.X.Scale * vp.X + 8, (1 - startPos.X.Scale) * vp.X - guiSize.X - 8)
+                local targetY = math.clamp(startPos.Y.Offset + delta.Y, -startPos.Y.Scale * vp.Y + 8, (1 - startPos.Y.Scale) * vp.Y - guiSize.Y - 8)
+                gui.Position = UDim2.new(startPos.X.Scale, targetX, startPos.Y.Scale, targetY)
+            end
         end
     end)
+
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
+            dragStart = nil
         end
     end)
 end
@@ -1851,8 +1881,8 @@ function NovaUI:CreateWindow(config)
         end
     end
 
-    -- Mobile Touch Detection & Pin Tab State
-    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    -- Mobile Touch Detection & Pin Tab State (Treat any TouchEnabled client as touch-capable)
+    local isMobile = UserInputService.TouchEnabled
     local isPinned = isMobile -- Default pinned on touch/mobile devices
 
     -- Device Screen & Frame Size Presets
@@ -1914,8 +1944,9 @@ function NovaUI:CreateWindow(config)
         Position = defaultPinPos,
         BackgroundColor3 = Theme.Surface,
         Text = "",
-        Visible = isMobile,
+        Visible = false,
         AutoButtonColor = false,
+        ZIndex = 100,
         Parent = sg
     })
     Utility.AddCorner(pinWidget, 16)
@@ -1951,21 +1982,47 @@ function NovaUI:CreateWindow(config)
         if targetVisible then
             mainFrame.Position = UDim2.new(0.5, -initSize.X.Offset/2, 0.5, -initSize.Y.Offset/2)
             mainFrame.Visible = true
-            pinWidget.Visible = false
+            pinWidget.Visible = isPinned and true or false
         else
             mainFrame.Visible = false
             pinWidget.Visible = true
         end
     end
 
-    -- Direct 1-click bindings for maximum executor/mobile responsiveness
-    pinWidget.MouseButton1Click:Connect(function() toggleWindow(true) end)
-    pinWidget.Activated:Connect(function() toggleWindow(true) end)
+    -- Universal tap & click binding helper (Supports Mouse, Touch Tap, and Activated with debounce)
+    local function bindUniversalClick(button, callback)
+        local debounce = false
+        local touchActive = false
+        local function trigger()
+            if debounce then return end
+            debounce = true
+            task.delay(0.2, function() debounce = false end)
+            callback()
+        end
+
+        button.Activated:Connect(trigger)
+        button.MouseButton1Click:Connect(trigger)
+        button.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                touchActive = true
+            end
+        end)
+        button.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch and touchActive then
+                touchActive = false
+                trigger()
+            end
+        end)
+    end
+
+    local function onPinWidgetToggle()
+        toggleWindow()
+    end
+
+    bindUniversalClick(pinWidget, onPinWidgetToggle)
 
     -- Draggable with threshold: dragging never triggers accidental window toggle, and auto-saves custom position
-    Utility.MakeDraggableWithClick(pinWidget, pinWidget, function()
-        toggleWindow(true)
-    end, function(finalPos)
+    Utility.MakeDraggableWithClick(pinWidget, pinWidget, onPinWidgetToggle, function(finalPos)
         ConfigData["_Liyhub_PinPos"] = {
             X = { finalPos.X.Scale, finalPos.X.Offset },
             Y = { finalPos.Y.Scale, finalPos.Y.Offset }
@@ -2095,16 +2152,19 @@ function NovaUI:CreateWindow(config)
         TextSize = 9,
         Parent = verBadge
     })
-    Utility.MakeDraggable(mainFrame, topBar)
+    local ctrlW = isMobile and 108 or 96
+    local ctrlH = isMobile and 28 or 26
+    local btnW = isMobile and 30 or 26
+    local btnH = isMobile and 28 or 26
 
     -- Window Controls (📌 Pin on Left, - Minimize in Middle, X Close on Right)
     local controls = Utility.Create("Frame", {
         Name = "WindowControls",
-        Size = UDim2.new(0, 96, 0, 26),
-        Position = UDim2.new(1, -106, 0.5, -13),
+        Size = UDim2.new(0, ctrlW, 0, ctrlH),
+        Position = UDim2.new(1, -(ctrlW + 10), 0.5, -ctrlH / 2),
         BackgroundTransparency = 1,
         Active = true,
-        ZIndex = 5,
+        ZIndex = 50,
         Parent = topBar
     })
     Utility.Create("UIListLayout", {
@@ -2116,23 +2176,27 @@ function NovaUI:CreateWindow(config)
         Parent = controls
     })
 
+    -- Make topBar draggable while protecting controls from drag interception
+    Utility.MakeDraggable(mainFrame, topBar, controls)
+
     -- 1. Pin Tab Button (📌) on LEFT (LayoutOrder = 1)
     local pinBtn = Utility.Create("TextButton", {
         Name = "PinButton",
         LayoutOrder = 1,
-        Size = UDim2.new(0, 26, 0, 26),
+        Size = UDim2.new(0, btnW, 0, btnH),
         BackgroundColor3 = isPinned and Theme.SurfaceElevated or Theme.SurfaceSecondary,
         Font = Enum.Font.GothamBold,
         Text = "📌",
         TextColor3 = isPinned and Theme.Accent or Theme.TextSecondary,
-        TextSize = 11,
+        TextSize = 12,
         AutoButtonColor = false,
+        ZIndex = 51,
         Parent = controls
     })
     Utility.AddCorner(pinBtn, 6)
     local pinBtnStroke = Utility.AddStroke(pinBtn, isPinned and Theme.Accent or Theme.Border, 1)
 
-    pinBtn.MouseButton1Click:Connect(function()
+    bindUniversalClick(pinBtn, function()
         toggleWindow(false)
         Notification.Notify({
             Title = "Pinned to Screen",
@@ -2145,19 +2209,21 @@ function NovaUI:CreateWindow(config)
     local minBtn = Utility.Create("TextButton", {
         Name = "MinimizeButton",
         LayoutOrder = 2,
-        Size = UDim2.new(0, 26, 0, 26),
+        Size = UDim2.new(0, btnW, 0, btnH),
         BackgroundColor3 = Theme.SurfaceSecondary,
         Text = "",
         AutoButtonColor = false,
+        ZIndex = 51,
         Parent = controls
     })
     Utility.AddCorner(minBtn, 6)
     local minStroke = Utility.AddStroke(minBtn, Theme.Border, 1)
     local minBar = Utility.Create("Frame", {
-        Size = UDim2.new(0, 10, 0, 2),
-        Position = UDim2.new(0.5, -5, 0.5, -1),
+        Size = UDim2.new(0, 12, 0, 2),
+        Position = UDim2.new(0.5, -6, 0.5, -1),
         BackgroundColor3 = Theme.Text,
         BorderSizePixel = 0,
+        Active = false,
         Parent = minBtn
     })
 
@@ -2169,7 +2235,8 @@ function NovaUI:CreateWindow(config)
         minBtn.BackgroundColor3 = Theme.SurfaceSecondary
         minStroke.Color = Theme.Border
     end)
-    minBtn.MouseButton1Click:Connect(function()
+
+    bindUniversalClick(minBtn, function()
         toggleWindow(false)
         Notification.Notify({ Title = "Minimized", Content = "Tap floating pin tab or press toggle key to restore", Duration = 2.0 })
     end)
@@ -2178,13 +2245,14 @@ function NovaUI:CreateWindow(config)
     local closeBtn = Utility.Create("TextButton", {
         Name = "CloseButton",
         LayoutOrder = 3,
-        Size = UDim2.new(0, 26, 0, 26),
+        Size = UDim2.new(0, btnW, 0, btnH),
         BackgroundColor3 = Theme.SurfaceSecondary,
         Font = Enum.Font.GothamBold,
         Text = "X",
         TextColor3 = Theme.Text,
         TextSize = 12,
         AutoButtonColor = false,
+        ZIndex = 51,
         Parent = controls
     })
     Utility.AddCorner(closeBtn, 6)
@@ -2200,7 +2268,8 @@ function NovaUI:CreateWindow(config)
         closeStroke.Color = Theme.Border
         closeBtn.TextColor3 = Theme.Text
     end)
-    closeBtn.MouseButton1Click:Connect(function()
+
+    bindUniversalClick(closeBtn, function()
         if getgenv then getgenv()._LIYHUB_CLEANUP = nil end
         sg:Destroy()
     end)
@@ -2699,7 +2768,7 @@ function NovaUI:CreateWindow(config)
 
     local tabs, tabButtons = {}, {}
 
-    settingsBtn.MouseButton1Click:Connect(function()
+    local function openSettings()
         for _, tData in ipairs(tabButtons) do
             tData.Tab:SetVisible(false)
             if tData._setSelected then tData._setSelected(false) end
@@ -2712,7 +2781,9 @@ function NovaUI:CreateWindow(config)
         end
         settingsPage.Visible = true
         settingsBtn.BackgroundColor3 = Theme.SurfaceElevated
-    end)
+    end
+    settingsBtn.MouseButton1Click:Connect(openSettings)
+    settingsBtn.Activated:Connect(openSettings)
 
     local windowObj = {}
     function windowObj:AddTabSection(title)
@@ -2824,6 +2895,7 @@ function NovaUI:CreateWindow(config)
             end
         end
         btn.MouseButton1Click:Connect(select)
+        btn.Activated:Connect(select)
 
         if #tabs == 1 then select() end
         return newTab
