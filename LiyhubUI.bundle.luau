@@ -1858,9 +1858,9 @@ function NovaUI:CreateWindow(config)
     -- Device Screen & Frame Size Presets
     local DevicePresets = {
         ["PC"] = { Name = "PC (Standard)", Size = UDim2.fromOffset(740, 490), Scale = 1.0 },
-        ["Android"] = { Name = "Android / Mobile", Size = UDim2.fromOffset(630, 360), Scale = 0.92 },
+        ["Android"] = { Name = "Android / Mobile", Size = UDim2.fromOffset(550, 315), Scale = 0.84 },
         ["Tablet"] = { Name = "Tablet / iPad", Size = UDim2.fromOffset(660, 420), Scale = 0.95 },
-        ["Compact"] = { Name = "Compact / Mini", Size = UDim2.fromOffset(540, 330), Scale = 0.88 }
+        ["Compact"] = { Name = "Compact / Mini", Size = UDim2.fromOffset(510, 290), Scale = 0.80 }
     }
 
     local savedPresetKey = ConfigData["_Liyhub_DevicePreset"]
@@ -2249,7 +2249,7 @@ function NovaUI:CreateWindow(config)
         Parent = sidebarFrame
     })
 
-    local settingsBtn = Utility.Create("TextButton", { Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 1, -96), BackgroundColor3 = Theme.SurfaceSecondary, Font = Enum.Font.GothamMedium, Text = "  ⚙  Settings", TextColor3 = Theme.Text, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, Parent = sidebarFrame })
+    local settingsBtn = Utility.Create("TextButton", { Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 1, -96), BackgroundColor3 = Theme.SurfaceSecondary, Font = Enum.Font.GothamMedium, Text = "  •  Settings", TextColor3 = Theme.Text, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, Parent = sidebarFrame })
     Utility.AddCorner(settingsBtn, 6); Utility.AddStroke(settingsBtn, Theme.Border, 1); Utility.AddPadding(settingsBtn, 0, 0, 8, 8)
 
     local profileCard = Utility.Create("Frame", { Size = UDim2.new(1, -16, 0, 48), Position = UDim2.new(0, 8, 1, -56), BackgroundColor3 = Theme.SurfaceSecondary, Parent = sidebarFrame })
@@ -2750,10 +2750,10 @@ function NovaUI:CreateWindow(config)
         local name, tabIcon
         if typeof(nameOrConfig) == "table" then
             name = nameOrConfig.Name or "Tab"
-            tabIcon = nameOrConfig.Icon or "◈"
+            tabIcon = nameOrConfig.Icon or "•"
         else
             name = tostring(nameOrConfig or "Tab")
-            tabIcon = icon or "◈"
+            tabIcon = icon or "•"
         end
         local newTab = Tab.new(contentArea, name)
         table.insert(tabs, newTab)
@@ -2864,6 +2864,15 @@ function NovaUI:CreateWindow(config)
     function windowObj:Minimize() toggleWindow(false) end
     function windowObj:SaveConfig() ConfigSystem.Save() end
     function windowObj:LoadConfig() ConfigSystem.Load() end
+    function windowObj:SetDevicePreset(presetKey)
+        applyDevicePreset(presetKey)
+    end
+    function windowObj:GetDevicePreset()
+        return activePresetKey
+    end
+    function windowObj:GetDevicePresets()
+        return DevicePresets
+    end
     function windowObj:Destroy()
         if getgenv then getgenv()._LIYHUB_CLEANUP = nil end
         sg:Destroy()
