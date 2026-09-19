@@ -2965,19 +2965,42 @@ function NovaUI:CreateWindow(config)
         Parent = mainFrame
     })
 
-    local resizeVisual = Utility.Create("TextLabel", {
-        Size = UDim2.new(0, 16, 0, 16),
+    local resizeGripVisual = Utility.Create("Frame", {
+        Name = "ResizeGripVisual",
+        Size = UDim2.new(0, 14, 0, 14),
         Position = UDim2.new(1, -16, 1, -16),
         BackgroundTransparency = 1,
-        Font = Enum.Font.GothamBold,
-        Text = "◢",
-        TextColor3 = Theme.BorderBright,
-        TextSize = 10,
-        TextXAlignment = Enum.TextXAlignment.Right,
-        TextYAlignment = Enum.TextYAlignment.Bottom,
         Active = false,
         Parent = resizeGripHit
     })
+    -- Three clean diagonal grip lines (Neverlose/Sleek design) that cleanly contour the rounded bottom-right corner
+    local gripLine1 = Utility.Create("Frame", {
+        Size = UDim2.new(0, 3, 0, 3),
+        Position = UDim2.new(1, -4, 1, -4),
+        BackgroundColor3 = Theme.BorderBright,
+        BorderSizePixel = 0,
+        Active = false,
+        Parent = resizeGripVisual
+    })
+    Utility.AddCorner(gripLine1, 1)
+    local gripLine2 = Utility.Create("Frame", {
+        Size = UDim2.new(0, 7, 0, 2),
+        Position = UDim2.new(1, -8, 1, -8),
+        BackgroundColor3 = Theme.Border,
+        BorderSizePixel = 0,
+        Active = false,
+        Parent = resizeGripVisual
+    })
+    Utility.AddCorner(gripLine2, 1)
+    local gripLine3 = Utility.Create("Frame", {
+        Size = UDim2.new(0, 11, 0, 2),
+        Position = UDim2.new(1, -12, 1, -12),
+        BackgroundColor3 = Theme.Border,
+        BorderSizePixel = 0,
+        Active = false,
+        Parent = resizeGripVisual
+    })
+    Utility.AddCorner(gripLine3, 1)
 
     local isResizing = false
     local resizeStart = nil
