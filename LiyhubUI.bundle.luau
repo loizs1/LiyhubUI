@@ -87,6 +87,15 @@ local Fonts = {
 }
 
 local Utility = {}
+function Utility.IsMobile()
+    if not UserInputService.TouchEnabled then
+        return false
+    end
+    if not UserInputService.MouseEnabled or not UserInputService.KeyboardEnabled then
+        return true
+    end
+    return false
+end
 function Utility.Create(className, props, children)
     local inst = Instance.new(className)
     for k, v in pairs(props or {}) do (inst :: any)[k] = v end
@@ -303,7 +312,7 @@ function Utility.MakeDraggable(gui, dragPart, ignoreElement)
             isDragging = false
 
             moveConn = UserInputService.InputChanged:Connect(function(inp)
-                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and inp == activeInput)
+                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and (inp == activeInput or inp.Position == activeInput.Position))
                     or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseMovement)
                 if isMatch and dragStart and startPos then
                     local delta = inp.Position - dragStart
@@ -332,7 +341,7 @@ function Utility.MakeDraggable(gui, dragPart, ignoreElement)
             end)
 
             endConn = UserInputService.InputEnded:Connect(function(inp)
-                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and inp == activeInput)
+                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and (inp == activeInput or inp.Position == activeInput.Position))
                     or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseButton1)
                 if isMatch then
                     cleanup()
@@ -361,7 +370,7 @@ function Utility.MakeDraggableWithClick(gui, dragPart, onClick, onDragEnd)
     local moveConn = nil
     local endConn = nil
     local cancelConn = nil
-    local dragThreshold = 10
+    local dragThreshold = 8
 
     local function cleanup()
         if moveConn then moveConn:Disconnect(); moveConn = nil end
@@ -382,7 +391,7 @@ function Utility.MakeDraggableWithClick(gui, dragPart, onClick, onDragEnd)
             isDragging = false
 
             moveConn = UserInputService.InputChanged:Connect(function(inp)
-                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and inp == activeInput)
+                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and (inp == activeInput or inp.Position == activeInput.Position))
                     or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseMovement)
                 if isMatch and dragStart and startPos then
                     local delta = inp.Position - dragStart
@@ -411,7 +420,7 @@ function Utility.MakeDraggableWithClick(gui, dragPart, onClick, onDragEnd)
             end)
 
             endConn = UserInputService.InputEnded:Connect(function(inp)
-                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and inp == activeInput)
+                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and (inp == activeInput or inp.Position == activeInput.Position))
                     or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseButton1)
                 if isMatch then
                     local wasDragging = isDragging
@@ -772,6 +781,16 @@ function Notification.Notify(config)
     local stripe = Utility.Create("Frame", { Size = UDim2.new(0, 3, 1, 0), Position = UDim2.new(0, -14, 0, -8), BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Parent = toast })
     Utility.Create("TextLabel", { Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, Text = config.Title or "Notification", TextColor3 = Theme.Text, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = toast })
     Utility.Create("TextLabel", { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 0, 20), BackgroundTransparency = 1, Font = Enum.Font.Gotham, Text = config.Content or "", TextColor3 = Theme.TextSecondary, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Parent = toast })
+    local dismissBtn = Utility.Create("TextButton", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "",
+        AutoButtonColor = false,
+        Parent = toast
+    })
+    dismissBtn.Activated:Connect(function()
+        if toast and toast.Parent then toast:Destroy() end
+    end)
     task.delay(config.Duration or 3.5, function()
         if toast and toast.Parent then toast:Destroy() end
     end)
@@ -862,12 +881,11 @@ function Toggle.new(parent, config)
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = toggleLbl })
 
-    local switch = Utility.Create("TextButton", {
+    local switch = Utility.Create("Frame", {
         Size = UDim2.new(0, 38, 0, 20),
         Position = UDim2.new(1, -38, 0.5, -10),
         BackgroundColor3 = state and Theme.Accent or Theme.Surface,
-        Text = "",
-        AutoButtonColor = false,
+        BorderSizePixel = 0,
         Parent = frame
     })
     Utility.AddCorner(switch, 10)
@@ -899,10 +917,6 @@ function Toggle.new(parent, config)
         Parent = frame
     })
     rowBtn.Activated:Connect(function()
-        setState(not state)
-    end)
-
-    switch.Activated:Connect(function()
         setState(not state)
     end)
 
@@ -995,10 +1009,14 @@ function Slider.new(parent, config)
     local dragging = false
     local moveConn = nil
     local endConn = nil
+    local cancelConn = nil
+    local activeInput = nil
 
     local function stopDrag()
         if moveConn then moveConn:Disconnect(); moveConn = nil end
         if endConn then endConn:Disconnect(); endConn = nil end
+        if cancelConn then cancelConn:Disconnect(); cancelConn = nil end
+        activeInput = nil
         if dragging then
             dragging = false
             ConfigData[keyName] = val
@@ -1019,18 +1037,30 @@ function Slider.new(parent, config)
 
     trackHitArea.InputBegan:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+            activeInput = inp
             dragging = true
             updateVal(inp.Position.X)
             if not moveConn then
                 moveConn = UserInputService.InputChanged:Connect(function(moveInp)
-                    if dragging and (moveInp.UserInputType == Enum.UserInputType.MouseMovement or moveInp.UserInputType == Enum.UserInputType.Touch) then
+                    local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and (moveInp == activeInput or moveInp.Position == activeInput.Position))
+                        or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and moveInp.UserInputType == Enum.UserInputType.MouseMovement)
+                    if dragging and isMatch then
                         updateVal(moveInp.Position.X)
                     end
                 end)
             end
             if not endConn then
                 endConn = UserInputService.InputEnded:Connect(function(endInp)
-                    if endInp.UserInputType == Enum.UserInputType.MouseButton1 or endInp.UserInputType == Enum.UserInputType.Touch then
+                    local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and (endInp == activeInput or endInp.Position == activeInput.Position))
+                        or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and endInp.UserInputType == Enum.UserInputType.MouseButton1)
+                    if isMatch then
+                        stopDrag()
+                    end
+                end)
+            end
+            if not cancelConn then
+                cancelConn = inp.Changed:Connect(function()
+                    if inp.UserInputState == Enum.UserInputState.Cancel then
                         stopDrag()
                     end
                 end)
@@ -1286,6 +1316,24 @@ function Dropdown.new(parent, config)
         valueLabel.Text = selected .. "  ▲"
         stroke.Color = Theme.BorderBright
         valPillStroke.Color = Theme.Accent
+
+        if Utility.IsMobile() then
+            task.defer(function()
+                if not isOpen or not frame or not frame.Parent then return end
+                local scrollParent = frame:FindFirstAncestorWhichIsA("ScrollingFrame")
+                if scrollParent then
+                    local vp = Utility.GetViewportSize()
+                    local framePos = frame.AbsolutePosition
+                    local frameH = frame.AbsoluteSize.Y
+                    local bottomY = framePos.Y + frameH
+                    if bottomY > vp.Y - 16 then
+                        local overflow = bottomY - (vp.Y - 16)
+                        local curCanvasY = scrollParent.CanvasPosition.Y
+                        scrollParent.CanvasPosition = Vector2.new(scrollParent.CanvasPosition.X, curCanvasY + overflow)
+                    end
+                end
+            end)
+        end
     end
 
 
@@ -1382,8 +1430,6 @@ function Dropdown.new(parent, config)
 
             end
 
-            itemBtn.MouseButton1Click:Connect(handleSelect)
-
             itemBtn.Activated:Connect(handleSelect)
 
         end
@@ -1415,8 +1461,6 @@ function Dropdown.new(parent, config)
     end
 
 
-
-    header.MouseButton1Click:Connect(toggleDropdown)
 
     header.Activated:Connect(toggleDropdown)
 
@@ -1838,8 +1882,6 @@ function MultiDropdown.new(parent, config)
 
             end
 
-            itemBtn.MouseButton1Click:Connect(handleToggle)
-
             itemBtn.Activated:Connect(handleToggle)
 
         end
@@ -1871,8 +1913,6 @@ function MultiDropdown.new(parent, config)
     end
 
 
-
-    header.MouseButton1Click:Connect(toggleDropdown)
 
     header.Activated:Connect(toggleDropdown)
 
@@ -2396,8 +2436,8 @@ function NovaUI:CreateWindow(config)
         end
     end
 
-    -- Mobile Touch Detection & Pin Tab State (Treat any TouchEnabled client as touch-capable)
-    local isMobile = UserInputService.TouchEnabled
+    -- Mobile Touch Detection & Pin Tab State (Centralized safe detection)
+    local isMobile = Utility.IsMobile()
     local isPinned = isMobile -- Default pinned on touch/mobile devices
 
     -- Device Screen & Frame Size Presets
@@ -2912,11 +2952,12 @@ function NovaUI:CreateWindow(config)
         destroyWindow()
     end)
 
-    -- Window Resize Handle (36x36px Touch Hit Area with bottom-right visual grip)
+    -- Window Resize Handle (Touch Hit Area with bottom-right visual grip)
+    local gripHitSize = isMobile and 44 or 36
     local resizeGripHit = Utility.Create("TextButton", {
         Name = "ResizeGripHit",
-        Size = UDim2.new(0, 36, 0, 36),
-        Position = UDim2.new(1, -36, 1, -36),
+        Size = UDim2.new(0, gripHitSize, 0, gripHitSize),
+        Position = UDim2.new(1, -gripHitSize, 1, -gripHitSize),
         BackgroundTransparency = 1,
         Text = "",
         AutoButtonColor = false,
@@ -2943,23 +2984,31 @@ function NovaUI:CreateWindow(config)
     local resizeStartSize = nil
     local resizeMoveConn = nil
     local resizeEndConn = nil
+    local resizeCancelConn = nil
+    local activeResizeInput = nil
 
     local function stopResize()
         if resizeMoveConn then resizeMoveConn:Disconnect(); resizeMoveConn = nil end
         if resizeEndConn then resizeEndConn:Disconnect(); resizeEndConn = nil end
+        if resizeCancelConn then resizeCancelConn:Disconnect(); resizeCancelConn = nil end
+        activeResizeInput = nil
         isResizing = false
     end
 
     resizeGripHit.InputBegan:Connect(function(input)
+        if isResizing or activeResizeInput then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            activeResizeInput = input
             isResizing = true
             resizeStart = input.Position
             resizeStartSize = mainFrame.Size
             local scale = (sgScale and sgScale.Scale) or 1
-            local vp = Utility.GetViewportSize()
 
             resizeMoveConn = UserInputService.InputChanged:Connect(function(inp)
-                if isResizing and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                local isMatch = (activeResizeInput and activeResizeInput.UserInputType == Enum.UserInputType.Touch and (inp == activeResizeInput or inp.Position == activeResizeInput.Position))
+                    or (activeResizeInput and activeResizeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseMovement)
+                if isResizing and isMatch and resizeStart and resizeStartSize then
+                    local vp = Utility.GetViewportSize()
                     local delta = inp.Position - resizeStart
                     local deltaLocalX = delta.X / scale
                     local deltaLocalY = delta.Y / scale
@@ -2972,7 +3021,15 @@ function NovaUI:CreateWindow(config)
             end)
 
             resizeEndConn = UserInputService.InputEnded:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                local isMatch = (activeResizeInput and activeResizeInput.UserInputType == Enum.UserInputType.Touch and (inp == activeResizeInput or inp.Position == activeResizeInput.Position))
+                    or (activeResizeInput and activeResizeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseButton1)
+                if isMatch then
+                    stopResize()
+                end
+            end)
+
+            resizeCancelConn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.Cancel then
                     stopResize()
                 end
             end)
@@ -3248,6 +3305,12 @@ function NovaUI:CreateWindow(config)
             end
         end)
     end)
+
+    table.insert(windowConnections, {
+        Disconnect = function()
+            if kbListenConn then kbListenConn:Disconnect(); kbListenConn = nil end
+        end
+    })
 
     table.insert(onKeybindChangedCallbacks, function(k)
         kbInputBtn.Text = "[" .. k.Name .. "]"
