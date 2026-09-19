@@ -22,7 +22,7 @@ local Liyhub = loadstring(game:HttpGet("https://raw.githubusercontent.com/loizs1
 
 -- 2. Inisialisasi Window
 local Window = Liyhub:CreateWindow({
-    Title = "LIYHUB - JAILBREAK",
+    Title = "Liyhub | Jailbreak",
     Size = UDim2.fromOffset(740, 490)
 })
 
@@ -62,19 +62,19 @@ local PlaceId = game.PlaceId
 
 if PlaceId == 6068496214 then
     -- JAILBREAK
-    local Window = Liyhub:CreateWindow({ Title = "LIYHUB - JAILBREAK" })
+    local Window = Liyhub:CreateWindow({ Title = "Liyhub | Jailbreak" })
     local Tab = Window:AddTab("Auto Rob", "💰")
     -- Script Jailbreak...
 
 elseif PlaceId == 2753915549 or PlaceId == 4442272183 then
     -- BLOX FRUITS
-    local Window = Liyhub:CreateWindow({ Title = "LIYHUB - BLOX FRUITS" })
+    local Window = Liyhub:CreateWindow({ Title = "Liyhub | Blox Fruits" })
     local Tab = Window:AddTab("Auto Farm", "⚔️")
     -- Script Blox Fruits...
 
 else
     -- UNIVERSAL FALLBACK
-    local Window = Liyhub:CreateWindow({ Title = "LIYHUB - UNIVERSAL" })
+    local Window = Liyhub:CreateWindow({ Title = "Liyhub | Universal" })
     local Tab = Window:AddTab("Movement", "⚡")
     -- Script Universal...
 end
@@ -130,7 +130,7 @@ Pengguna dapat menentukan sendiri tombol atau cara yang ingin digunakan untuk me
 1. **Inisialisasi Custom Toggle Key**:
    ```luau
    local Window = Liyhub:CreateWindow({
-       Title = "LIYHUB",
+       Title = "Liyhub",
        ToggleKey = Enum.KeyCode.RightControl, -- Default key (bisa RightShift, Insert, F4, dll)
    })
    ```
@@ -164,7 +164,7 @@ Sistem penyimpanan konfigurasi otomatis ke file `.json`:
    - Tentukan versi konfigurasi di `CreateWindow`:
      ```luau
      local Window = Liyhub:CreateWindow({
-         Title = "LIYHUB |",
+         Title = "Liyhub |",
          Footer = "Auto Farm",
          Version = 1,
      })

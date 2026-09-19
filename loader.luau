@@ -1,5 +1,5 @@
 -- ============================================================================
--- LIYHUB.CC | UNIVERSAL GAME LOADER
+-- Liyhub | UNIVERSAL GAME LOADER
 -- Official Single-Loadstring Entrypoint (Chloe X / Neverlose Architecture)
 -- ============================================================================
 local Liyhub = loadstring(game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/LiyhubUI.bundle.luau"))()

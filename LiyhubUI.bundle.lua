@@ -726,7 +726,7 @@ function DrawingOverlay.Init()
         text.Color = Color3.fromRGB(225, 225, 240)
         text.Outline = true
         text.OutlineColor = Color3.fromRGB(10, 10, 14)
-        text.Text = "LIYHUB v2.4 | ACTIVE"
+        text.Text = "Liyhub v2.4 | ACTIVE"
         DrawingOverlay.Watermark = text
 
         local lastWm = 0
@@ -743,7 +743,7 @@ function DrawingOverlay.Init()
                     local stats = game:GetService("Stats")
                     pingVal = math.floor(stats.Network.ServerStatsItem["Data Ping"]:GetValue() or 0)
                 end)
-                text.Text = string.format("LIYHUB v2.4 | FPS: %d | PING: %dms", AnimationEngine.FPS, pingVal)
+                text.Text = string.format("Liyhub v2.4 | FPS: %d | PING: %dms", AnimationEngine.FPS, pingVal)
             end
         end)
         if getgenv then
@@ -778,7 +778,7 @@ function Notification.Notify(config)
 end
 
 local function chloexNotif(message)
-    Notification.Notify({ Title = "LIYHUB", Content = tostring(message), Duration = 2.5 })
+    Notification.Notify({ Title = "Liyhub", Content = tostring(message), Duration = 2.5 })
 end
 ConfigEnv.chloex = chloexNotif
 ConfigEnv.than = chloexNotif
@@ -2507,9 +2507,9 @@ function NovaUI:CreateWindow(config)
 
     local titleText = config.Title
     if not titleText or titleText == "" then
-        titleText = "LiyHub | " .. DetectedGameName
-    elseif titleText == "LiyHub" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
-        titleText = "LiyHub | " .. DetectedGameName
+        titleText = "Liyhub | " .. DetectedGameName
+    elseif titleText == "Liyhub" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" or titleText == "LiyHub" then
+        titleText = "Liyhub | " .. DetectedGameName
     elseif titleText:find("{game}") then
         titleText = titleText:gsub("{game}", DetectedGameName)
     end
@@ -2517,7 +2517,7 @@ function NovaUI:CreateWindow(config)
         titleText = titleText .. " " .. config.Footer
     end
 
-    local cleanPinTitle = (titleText or "LiyHub"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
+    local cleanPinTitle = (titleText or "Liyhub"):gsub("%s*|%s*$", ""):gsub("%s+$", "")
 
     -- Floating Mobile Pin Tab (SpeedHub / ChloeX pattern)
     local pinWidget = Utility.Create("TextButton", {
