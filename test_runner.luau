@@ -236,135 +236,157 @@ function Utility.CreateLiyhubMark(parent, size, posX, posY, overrideLogo)
     Utility.AddCorner(orb, orbSize / 2)
     return root
 end
+function Utility.GetViewportSize()
+    local camera = workspace.CurrentCamera
+    if camera and camera.ViewportSize.X > 0 and camera.ViewportSize.Y > 0 then
+        return camera.ViewportSize
+    end
+    return Vector2.new(1920, 1080)
+end
+
 function Utility.MakeDraggable(gui, dragPart, ignoreElement)
-    local dragging = false
+    local activeInput = nil
     local dragStart = nil
     local startPos = nil
-    local dragThreshold = 10 -- Minimum movement threshold: prevents mobile tap jitter from cancelling button clicks
+    local isDragging = false
+    local moveConn = nil
+    local endConn = nil
+    local cancelConn = nil
+    local dragThreshold = 8
+
+    local function cleanup()
+        if moveConn then moveConn:Disconnect(); moveConn = nil end
+        if endConn then endConn:Disconnect(); endConn = nil end
+        if cancelConn then cancelConn:Disconnect(); cancelConn = nil end
+        activeInput = nil
+        dragStart = nil
+        startPos = nil
+        isDragging = false
+    end
 
     dragPart.InputBegan:Connect(function(input)
+        if activeInput then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            -- Bypass dragging completely if touch/click originated within interactive controls (Minimize, Pin, Close)
             if ignoreElement and ignoreElement.Parent then
                 local p = input.Position
                 local igPos = ignoreElement.AbsolutePosition
                 local igSize = ignoreElement.AbsoluteSize
-                if p.X >= igPos.X - 6 and p.X <= igPos.X + igSize.X + 6 and
-                   p.Y >= igPos.Y - 6 and p.Y <= igPos.Y + igSize.Y + 6 then
+                if p.X >= igPos.X - 4 and p.X <= igPos.X + igSize.X + 4 and
+                   p.Y >= igPos.Y - 4 and p.Y <= igPos.Y + igSize.Y + 4 then
                     return
                 end
             end
 
+            activeInput = input
             dragStart = input.Position
             startPos = gui.Position
-            dragging = false
+            isDragging = false
 
-            local conn
-            conn = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    dragStart = nil
-                    if conn then conn:Disconnect() end
+            moveConn = UserInputService.InputChanged:Connect(function(inp)
+                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and inp == activeInput)
+                    or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseMovement)
+                if isMatch and dragStart and startPos then
+                    local delta = inp.Position - dragStart
+                    if not isDragging and (math.abs(delta.X) > dragThreshold or math.abs(delta.Y) > dragThreshold) then
+                        isDragging = true
+                    end
+                    if isDragging then
+                        local vp = Utility.GetViewportSize()
+                        local guiSize = gui.AbsoluteSize
+                        local curAbsX = startPos.X.Scale * vp.X + startPos.X.Offset + delta.X
+                        local curAbsY = startPos.Y.Scale * vp.Y + startPos.Y.Offset + delta.Y
+                        local targetX = math.clamp(curAbsX, 8, math.max(8, vp.X - guiSize.X - 8))
+                        local targetY = math.clamp(curAbsY, 8, math.max(8, vp.Y - guiSize.Y - 8))
+                        gui.Position = UDim2.new(0, targetX, 0, targetY)
+                    end
                 end
             end)
-        end
-    end)
 
-    UserInputService.InputChanged:Connect(function(input)
-        if dragStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            if not dragging and delta.Magnitude > dragThreshold then
-                dragging = true
-            end
+            endConn = UserInputService.InputEnded:Connect(function(inp)
+                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and inp == activeInput)
+                    or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseButton1)
+                if isMatch then
+                    cleanup()
+                end
+            end)
 
-            if dragging and startPos then
-                local camera = workspace.CurrentCamera
-                local vp = camera and camera.ViewportSize or Vector2.new(1920, 1080)
-                local guiSize = gui.AbsoluteSize
-                local targetX = math.clamp(startPos.X.Offset + delta.X, -startPos.X.Scale * vp.X + 8, (1 - startPos.X.Scale) * vp.X - guiSize.X - 8)
-                local targetY = math.clamp(startPos.Y.Offset + delta.Y, -startPos.Y.Scale * vp.Y + 8, (1 - startPos.Y.Scale) * vp.Y - guiSize.Y - 8)
-                gui.Position = UDim2.new(startPos.X.Scale, targetX, startPos.Y.Scale, targetY)
-            end
-        end
-    end)
-
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-            dragStart = nil
+            cancelConn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.Cancel then
+                    cleanup()
+                end
+            end)
         end
     end)
 end
 
 function Utility.MakeDraggableWithClick(gui, dragPart, onClick, onDragEnd)
-    local dragging = false
+    local activeInput = nil
     local dragStart = nil
     local startPos = nil
-    local isDragged = false
-    local touchStartTime = 0
-    local dragThreshold = 26 -- generous threshold: intentional drag only
+    local isDragging = false
+    local moveConn = nil
+    local endConn = nil
+    local cancelConn = nil
+    local dragThreshold = 10
 
-    dragPart.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = gui.Position
-            isDragged = false
-            touchStartTime = os.clock()
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            local dist = math.sqrt(delta.X * delta.X + delta.Y * delta.Y)
-            if dist > dragThreshold and (os.clock() - touchStartTime > 0.18) then
-                isDragged = true
-                local camera = workspace.CurrentCamera
-                local vp = camera and camera.ViewportSize or Vector2.new(1920, 1080)
-                local guiSize = gui.AbsoluteSize
-                local targetX = math.clamp(startPos.X.Offset + delta.X, -startPos.X.Scale * vp.X + 8, (1 - startPos.X.Scale) * vp.X - guiSize.X - 8)
-                local targetY = math.clamp(startPos.Y.Offset + delta.Y, -startPos.Y.Scale * vp.Y + 8, (1 - startPos.Y.Scale) * vp.Y - guiSize.Y - 8)
-                gui.Position = UDim2.new(startPos.X.Scale, targetX, startPos.Y.Scale, targetY)
-            end
-        end
-    end)
-
-    local clickDebounce = false
-    local function endDragAndEvaluate()
-        if not dragging then return end
-        dragging = false
-        if isDragged then
-            if onDragEnd then onDragEnd(gui.Position) end
-            task.delay(0.12, function() isDragged = false end)
-        else
-            -- 100% Guaranteed 1-Click execution
-            if not clickDebounce and onClick then
-                clickDebounce = true
-                task.delay(0.2, function() clickDebounce = false end)
-                onClick()
-            end
-        end
+    local function cleanup()
+        if moveConn then moveConn:Disconnect(); moveConn = nil end
+        if endConn then endConn:Disconnect(); endConn = nil end
+        if cancelConn then cancelConn:Disconnect(); cancelConn = nil end
+        activeInput = nil
+        dragStart = nil
+        startPos = nil
+        isDragging = false
     end
 
-    UserInputService.InputEnded:Connect(function(input)
+    dragPart.InputBegan:Connect(function(input)
+        if activeInput then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            endDragAndEvaluate()
-        end
-    end)
+            activeInput = input
+            dragStart = input.Position
+            startPos = gui.Position
+            isDragging = false
 
-    dragPart.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            endDragAndEvaluate()
-        end
-    end)
+            moveConn = UserInputService.InputChanged:Connect(function(inp)
+                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and inp == activeInput)
+                    or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseMovement)
+                if isMatch and dragStart and startPos then
+                    local delta = inp.Position - dragStart
+                    if not isDragging and (math.abs(delta.X) > dragThreshold or math.abs(delta.Y) > dragThreshold) then
+                        isDragging = true
+                    end
+                    if isDragging then
+                        local vp = Utility.GetViewportSize()
+                        local guiSize = gui.AbsoluteSize
+                        local curAbsX = startPos.X.Scale * vp.X + startPos.X.Offset + delta.X
+                        local curAbsY = startPos.Y.Scale * vp.Y + startPos.Y.Offset + delta.Y
+                        local targetX = math.clamp(curAbsX, 8, math.max(8, vp.X - guiSize.X - 8))
+                        local targetY = math.clamp(curAbsY, 8, math.max(8, vp.Y - guiSize.Y - 8))
+                        gui.Position = UDim2.new(0, targetX, 0, targetY)
+                    end
+                end
+            end)
 
-    -- Engine-level fallback: Activated signal
-    dragPart.Activated:Connect(function()
-        if not isDragged and not clickDebounce and onClick then
-            clickDebounce = true
-            task.delay(0.2, function() clickDebounce = false end)
-            onClick()
+            endConn = UserInputService.InputEnded:Connect(function(inp)
+                local isMatch = (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and inp == activeInput)
+                    or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and inp.UserInputType == Enum.UserInputType.MouseButton1)
+                if isMatch then
+                    local wasDragging = isDragging
+                    local finalPos = gui.Position
+                    cleanup()
+                    if wasDragging then
+                        if onDragEnd then onDragEnd(finalPos) end
+                    else
+                        if onClick then onClick() end
+                    end
+                end
+            end)
+
+            cancelConn = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.Cancel then
+                    cleanup()
+                end
+            end)
         end
     end)
 end
@@ -448,8 +470,11 @@ function ConfigSystem.SaveProfilesList()
     end)
 end
 
-function ConfigSystem.Init(version, customFile)
+function ConfigSystem.Init(version, customFile, shouldAutoLoad)
     ConfigSystem.Version = version or ConfigSystem.Version or 1
+    ConfigSystem._elements = {}
+    ConfigSystem._savePending = false
+
     pcall(function()
         if typeof(isfolder) == "function" and typeof(makefolder) == "function" then
             if not isfolder("Liyhub") then makefolder("Liyhub") end
@@ -472,11 +497,11 @@ function ConfigSystem.Init(version, customFile)
             end
         end
     end)
-    if autoLoad == true then
-        local startProf = customFile or ConfigSystem.CurrentProfile or "Default"
+    local startProf = customFile or ConfigSystem.CurrentProfile or "Default"
+    if shouldAutoLoad == true then
         ConfigSystem.Load(startProf)
     else
-        table.clear(ConfigData)
+        ConfigSystem.CurrentProfile = startProf
     end
 end
 
@@ -492,6 +517,23 @@ function ConfigSystem.Save(profileName)
         table.insert(ConfigSystem.Profiles, cleanName)
         ConfigSystem.SaveProfilesList()
     end
+
+    -- Pull fresh live values from all registered UI elements
+    for id, elem in pairs(ConfigSystem._elements) do
+        if elem and elem.Get then
+            pcall(function()
+                local val = elem.Get()
+                if typeof(val) == "Color3" then
+                    ConfigData[id] = { __type = "Color3", r = val.R, g = val.G, b = val.B }
+                elseif typeof(val) == "EnumItem" then
+                    ConfigData[id] = { __type = "EnumItem", enum = tostring(val.EnumType), name = val.Name }
+                elseif val ~= nil then
+                    ConfigData[id] = val
+                end
+            end)
+        end
+    end
+
     if typeof(writefile) ~= "function" then return false, cleanName end
     local ok = pcall(function()
         local savePayload = {
@@ -726,7 +768,7 @@ function Button.new(parent, config)
     btn.MouseButton1Up:Connect(function()
         AnimationEngine.Tween(btn, TWEEN_BOUNCE, { Size = UDim2.new(1, 0, 0, 36) })
     end)
-    btn.MouseButton1Click:Connect(function()
+    btn.Activated:Connect(function()
         if config.Callback then task.spawn(config.Callback) end
     end)
     return btn
@@ -794,7 +836,7 @@ function Toggle.new(parent, config)
 
     ConfigSystem.Register(keyName, function() return state end, function(v) setState(v) end)
 
-    switch.MouseButton1Click:Connect(function()
+    switch.Activated:Connect(function()
         setState(not state)
     end)
 
@@ -849,13 +891,22 @@ function Slider.new(parent, config)
         Parent = frame
     })
 
-    local track = Utility.Create("TextButton", {
-        Size = UDim2.new(1, 0, 0, 6),
-        Position = UDim2.new(0, 0, 1, -8),
-        BackgroundColor3 = Theme.Surface,
+    local trackHitArea = Utility.Create("TextButton", {
+        Size = UDim2.new(1, 0, 0, 24),
+        Position = UDim2.new(0, 0, 1, -18),
+        BackgroundTransparency = 1,
         Text = "",
         AutoButtonColor = false,
         Parent = frame
+    })
+
+    local track = Utility.Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 6),
+        Position = UDim2.new(0, 0, 0.5, -3),
+        BackgroundColor3 = Theme.Surface,
+        BorderSizePixel = 0,
+        Active = false,
+        Parent = trackHitArea
     })
     Utility.AddCorner(track, 3)
 
@@ -876,6 +927,19 @@ function Slider.new(parent, config)
     Utility.AddCorner(knob, 6)
 
     local dragging = false
+    local moveConn = nil
+    local endConn = nil
+
+    local function stopDrag()
+        if moveConn then moveConn:Disconnect(); moveConn = nil end
+        if endConn then endConn:Disconnect(); endConn = nil end
+        if dragging then
+            dragging = false
+            ConfigData[keyName] = val
+            ConfigSystem.QueueSave()
+        end
+    end
+
     local function updateVal(x)
         local rel = math.clamp(x - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
         local p = rel / math.max(track.AbsoluteSize.X, 1)
@@ -886,23 +950,23 @@ function Slider.new(parent, config)
         if config.Callback then task.spawn(config.Callback, val) end
     end
 
-    track.InputBegan:Connect(function(inp)
+    trackHitArea.InputBegan:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             updateVal(inp.Position.X)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(inp)
-        if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-            updateVal(inp.Position.X)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-            if dragging then
-                dragging = false
-                ConfigData[keyName] = val
-                ConfigSystem.QueueSave()
+            if not moveConn then
+                moveConn = UserInputService.InputChanged:Connect(function(moveInp)
+                    if dragging and (moveInp.UserInputType == Enum.UserInputType.MouseMovement or moveInp.UserInputType == Enum.UserInputType.Touch) then
+                        updateVal(moveInp.Position.X)
+                    end
+                end)
+            end
+            if not endConn then
+                endConn = UserInputService.InputEnded:Connect(function(endInp)
+                    if endInp.UserInputType == Enum.UserInputType.MouseButton1 or endInp.UserInputType == Enum.UserInputType.Touch then
+                        stopDrag()
+                    end
+                end)
             end
         end
     end)
@@ -926,6 +990,26 @@ function Slider.new(parent, config)
 end
 
 -- 4. DROPDOWN (SINGLE-SELECT)
+local ActiveDropdownCloser = nil
+local ActiveDropdownBounds = nil
+
+UserInputService.InputBegan:Connect(function(inp)
+    if (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) and ActiveDropdownCloser then
+        if ActiveDropdownBounds and ActiveDropdownBounds.Frame and ActiveDropdownBounds.Frame.Parent then
+            local p = inp.Position
+            local fPos = ActiveDropdownBounds.Frame.AbsolutePosition
+            local fSize = ActiveDropdownBounds.Frame.AbsoluteSize
+            local cPos = ActiveDropdownBounds.Container.AbsolutePosition
+            local cSize = ActiveDropdownBounds.Container.AbsoluteSize
+            local inF = (p.X >= fPos.X and p.X <= fPos.X + fSize.X and p.Y >= fPos.Y and p.Y <= fPos.Y + fSize.Y)
+            local inC = (p.X >= cPos.X and p.X <= cPos.X + cSize.X and p.Y >= cPos.Y and p.Y <= cPos.Y + cSize.Y)
+            if not inF and not inC then
+                pcall(ActiveDropdownCloser)
+            end
+        end
+    end
+end)
+
 local Dropdown = {}
 function Dropdown.new(parent, config)
     local keyName = config.Name or "Dropdown"
@@ -956,7 +1040,7 @@ function Dropdown.new(parent, config)
     })
 
     local dropLbl = Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -84, 1, 0),
+        Size = UDim2.new(1, -94, 1, 0),
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamMedium,
         Text = keyName,
@@ -965,14 +1049,16 @@ function Dropdown.new(parent, config)
         TextScaled = true,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
+        Active = false,
         Parent = header
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = dropLbl })
 
     local valPill = Utility.Create("Frame", {
-        Size = UDim2.new(0, 78, 1, 0),
-        Position = UDim2.new(1, -78, 0, 0),
+        Size = UDim2.new(0, 88, 1, 0),
+        Position = UDim2.new(1, -88, 0, 0),
         BackgroundColor3 = Theme.Surface,
+        Active = false,
         Parent = header
     })
     Utility.AddCorner(valPill, 4)
@@ -989,32 +1075,90 @@ function Dropdown.new(parent, config)
         TextScaled = true,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Center,
+        Active = false,
         Parent = valPill
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 11, MinTextSize = 8, Parent = valueLabel })
 
     local optContainer = Utility.Create("ScrollingFrame", {
+        Name = "OptionsList",
         Size = UDim2.new(1, 0, 0, 0),
-        Position = UDim2.new(0, 0, 0, 28),
-        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 0, 0, 30),
+        BackgroundTransparency = 0,
+        BackgroundColor3 = Theme.Surface,
         BorderSizePixel = 0,
-        ScrollBarThickness = 3,
+        ScrollBarThickness = 4,
         ScrollBarImageColor3 = Theme.Accent,
+        TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+        BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
         CanvasSize = UDim2.new(0, 0, 0, 0),
-        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        AutomaticCanvasSize = Enum.AutomaticSize.None,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
         Visible = false,
         Parent = frame
     })
-    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4), Parent = optContainer })
+    Utility.AddCorner(optContainer, 5)
+    Utility.AddStroke(optContainer, Theme.BorderBright, 1)
+    Utility.AddPadding(optContainer, 4, 4, 4, 4)
+    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3), Parent = optContainer })
+
+    local function closeDropdown()
+        if not isOpen then return end
+        isOpen = false
+        optContainer.Visible = false
+        frame.ZIndex = 1
+        optContainer.ZIndex = 2
+        valueLabel.Text = selected .. "  ▼"
+        stroke.Color = Theme.Border
+        valPillStroke.Color = Theme.Border
+        if ActiveDropdownCloser == closeDropdown then
+            ActiveDropdownCloser = nil
+            ActiveDropdownBounds = nil
+        end
+    end
 
     local function updateContainerHeight()
         local count = #options
-        local maxVisible = 6
-        local itemHeight = 24
-        local padding = 4
-        local totalH = count * itemHeight + math.max(0, count - 1) * padding
-        local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding)
+        local maxVisible = 5
+        local itemHeight = 26
+        local padding = 3
+        local totalH = count * itemHeight + math.max(0, count - 1) * padding + 8
+        local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
         optContainer.Size = UDim2.new(1, 0, 0, clampedH)
+        optContainer.CanvasSize = UDim2.new(0, 0, 0, totalH)
+    end
+
+    local function openDropdown()
+        if isOpen then return end
+        if ActiveDropdownCloser and ActiveDropdownCloser ~= closeDropdown then
+            pcall(ActiveDropdownCloser)
+        end
+        ActiveDropdownCloser = closeDropdown
+        isOpen = true
+        updateContainerHeight()
+
+        local vp = Utility.GetViewportSize()
+        local count = #options
+        local maxVisible = 5
+        local itemHeight = 26
+        local padding = 3
+        local clampedH = math.min(count * itemHeight + math.max(0, count - 1) * padding + 8, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
+        local framePos = frame.AbsolutePosition
+        local spaceBelow = vp.Y - (framePos.Y + 36)
+        if spaceBelow < clampedH and framePos.Y > clampedH then
+            optContainer.Position = UDim2.new(0, 0, 0, -clampedH - 4)
+        else
+            optContainer.Position = UDim2.new(0, 0, 0, 30)
+        end
+
+        frame.ZIndex = 25
+        optContainer.ZIndex = 26
+        ActiveDropdownBounds = { Frame = frame, Container = optContainer }
+        optContainer.Visible = true
+        valueLabel.Text = selected .. "  ▲"
+        stroke.Color = Theme.BorderBright
+        valPillStroke.Color = Theme.Accent
     end
 
     local function renderOptions()
@@ -1025,39 +1169,52 @@ function Dropdown.new(parent, config)
         for _, opt in ipairs(options) do
             local isCurrent = (opt == selected)
             local itemBtn = Utility.Create("TextButton", {
-                Size = UDim2.new(1, -6, 0, 24),
-                BackgroundColor3 = isCurrent and Theme.SurfaceElevated or Theme.Surface,
-                Font = Enum.Font.Gotham,
-                Text = "  " .. opt,
-                TextColor3 = isCurrent and Theme.Accent or Theme.Text,
+                Size = UDim2.new(1, 0, 0, 26),
+                BackgroundColor3 = isCurrent and Theme.Accent or Theme.SurfaceElevated,
+                BackgroundTransparency = isCurrent and 0.15 or 0.75,
+                Font = isCurrent and Enum.Font.GothamBold or Enum.Font.GothamMedium,
+                Text = (isCurrent and "  ●  " or "      ") .. opt,
+                TextColor3 = isCurrent and Color3.fromRGB(255, 255, 255) or Theme.Text,
                 TextSize = 11,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 AutoButtonColor = false,
                 Parent = optContainer
             })
             Utility.AddCorner(itemBtn, 4)
-            itemBtn.MouseButton1Click:Connect(function()
+
+            itemBtn.MouseEnter:Connect(function()
+                if opt ~= selected then
+                    itemBtn.BackgroundTransparency = 0.35
+                    itemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+            end)
+            itemBtn.MouseLeave:Connect(function()
+                if opt ~= selected then
+                    itemBtn.BackgroundTransparency = 0.75
+                    itemBtn.TextColor3 = Theme.Text
+                end
+            end)
+
+            itemBtn.Activated:Connect(function()
                 selected = opt
                 ConfigData[keyName] = selected
                 ConfigSystem.QueueSave()
-                isOpen = false
-                optContainer.Visible = false
-                valueLabel.Text = selected .. "  ▼"
-                stroke.Color = Theme.Border
-                valPillStroke.Color = Theme.Border
+                closeDropdown()
                 renderOptions()
                 if config.Callback then task.spawn(config.Callback, selected) end
             end)
         end
     end
 
-    header.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-        optContainer.Visible = isOpen
-        valueLabel.Text = selected .. (isOpen and "  ▲" or "  ▼")
-        stroke.Color = isOpen and Theme.BorderBright or Theme.Border
-        valPillStroke.Color = isOpen and Theme.Accent or Theme.Border
-    end)
+    local function toggleDropdown()
+        if isOpen then
+            closeDropdown()
+        else
+            openDropdown()
+        end
+    end
+
+    header.Activated:Connect(toggleDropdown)
 
     renderOptions()
 
@@ -1124,7 +1281,7 @@ function MultiDropdown.new(parent, config)
     })
 
     local mdropLbl = Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -84, 1, 0),
+        Size = UDim2.new(1, -94, 1, 0),
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamMedium,
         Text = keyName,
@@ -1133,14 +1290,16 @@ function MultiDropdown.new(parent, config)
         TextScaled = true,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Left,
+        Active = false,
         Parent = header
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = mdropLbl })
 
     local valPill = Utility.Create("Frame", {
-        Size = UDim2.new(0, 78, 1, 0),
-        Position = UDim2.new(1, -78, 0, 0),
+        Size = UDim2.new(0, 88, 1, 0),
+        Position = UDim2.new(1, -88, 0, 0),
         BackgroundColor3 = Theme.Surface,
+        Active = false,
         Parent = header
     })
     Utility.AddCorner(valPill, 4)
@@ -1163,19 +1322,91 @@ function MultiDropdown.new(parent, config)
         TextScaled = true,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Center,
+        Active = false,
         Parent = valPill
     })
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 11, MinTextSize = 8, Parent = valueLabel })
 
-    local optContainer = Utility.Create("Frame", {
+    local optContainer = Utility.Create("ScrollingFrame", {
+        Name = "OptionsList",
         Size = UDim2.new(1, 0, 0, 0),
-        Position = UDim2.new(0, 0, 0, 28),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 0, 0, 30),
+        BackgroundColor3 = Theme.Surface,
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = Theme.Accent,
+        TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+        BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.None,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
         Visible = false,
         Parent = frame
     })
-    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4), Parent = optContainer })
+    Utility.AddCorner(optContainer, 5)
+    Utility.AddStroke(optContainer, Theme.BorderBright, 1)
+    Utility.AddPadding(optContainer, 4, 4, 4, 4)
+    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3), Parent = optContainer })
+
+    local function closeDropdown()
+        if not isOpen then return end
+        isOpen = false
+        optContainer.Visible = false
+        frame.ZIndex = 1
+        optContainer.ZIndex = 2
+        valueLabel.Text = getSummary() .. "  ▼"
+        stroke.Color = Theme.Border
+        valPillStroke.Color = Theme.Border
+        if ActiveDropdownCloser == closeDropdown then
+            ActiveDropdownCloser = nil
+            ActiveDropdownBounds = nil
+        end
+    end
+
+    local function updateContainerHeight()
+        local count = #options
+        local maxVisible = 5
+        local itemHeight = 26
+        local padding = 3
+        local totalH = count * itemHeight + math.max(0, count - 1) * padding + 8
+        local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
+        optContainer.Size = UDim2.new(1, 0, 0, clampedH)
+        optContainer.CanvasSize = UDim2.new(0, 0, 0, totalH)
+    end
+
+    local function openDropdown()
+        if isOpen then return end
+        if ActiveDropdownCloser and ActiveDropdownCloser ~= closeDropdown then
+            pcall(ActiveDropdownCloser)
+        end
+        ActiveDropdownCloser = closeDropdown
+        isOpen = true
+        updateContainerHeight()
+
+        local vp = Utility.GetViewportSize()
+        local count = #options
+        local maxVisible = 5
+        local itemHeight = 26
+        local padding = 3
+        local clampedH = math.min(count * itemHeight + math.max(0, count - 1) * padding + 8, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
+        local framePos = frame.AbsolutePosition
+        local spaceBelow = vp.Y - (framePos.Y + 36)
+        if spaceBelow < clampedH and framePos.Y > clampedH then
+            optContainer.Position = UDim2.new(0, 0, 0, -clampedH - 4)
+        else
+            optContainer.Position = UDim2.new(0, 0, 0, 30)
+        end
+
+        frame.ZIndex = 25
+        optContainer.ZIndex = 26
+        ActiveDropdownBounds = { Frame = frame, Container = optContainer }
+        optContainer.Visible = true
+        valueLabel.Text = getSummary() .. "  ▲"
+        stroke.Color = Theme.BorderBright
+        valPillStroke.Color = Theme.Accent
+    end
 
     local function syncState()
         local list = {}
@@ -1189,12 +1420,14 @@ function MultiDropdown.new(parent, config)
         for _, c in ipairs(optContainer:GetChildren()) do
             if c:IsA("TextButton") then c:Destroy() end
         end
+        updateContainerHeight()
         for _, opt in ipairs(options) do
             local isSel = (selected[opt] == true)
             local itemBtn = Utility.Create("TextButton", {
-                Size = UDim2.new(1, 0, 0, 24),
-                BackgroundColor3 = isSel and Theme.SurfaceElevated or Theme.Surface,
-                Font = Enum.Font.Gotham,
+                Size = UDim2.new(1, 0, 0, 26),
+                BackgroundColor3 = isSel and Theme.SurfaceElevated or Color3.fromRGB(20, 20, 25),
+                BackgroundTransparency = isSel and 0.2 or 0.75,
+                Font = isSel and Enum.Font.GothamBold or Enum.Font.GothamMedium,
                 Text = (isSel and "  ✓  " or "      ") .. opt,
                 TextColor3 = isSel and Theme.Accent or Theme.Text,
                 TextSize = 11,
@@ -1203,7 +1436,21 @@ function MultiDropdown.new(parent, config)
                 Parent = optContainer
             })
             Utility.AddCorner(itemBtn, 4)
-            itemBtn.MouseButton1Click:Connect(function()
+
+            itemBtn.MouseEnter:Connect(function()
+                if not selected[opt] then
+                    itemBtn.BackgroundTransparency = 0.4
+                    itemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+            end)
+            itemBtn.MouseLeave:Connect(function()
+                if not selected[opt] then
+                    itemBtn.BackgroundTransparency = 0.75
+                    itemBtn.TextColor3 = Theme.Text
+                end
+            end)
+
+            itemBtn.Activated:Connect(function()
                 selected[opt] = not selected[opt]
                 valueLabel.Text = getSummary() .. (isOpen and "  ▲" or "  ▼")
                 local list = syncState()
@@ -1213,13 +1460,15 @@ function MultiDropdown.new(parent, config)
         end
     end
 
-    header.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-        optContainer.Visible = isOpen
-        valueLabel.Text = getSummary() .. (isOpen and "  ▲" or "  ▼")
-        stroke.Color = isOpen and Theme.BorderBright or Theme.Border
-        valPillStroke.Color = isOpen and Theme.Accent or Theme.Border
-    end)
+    local function toggleDropdown()
+        if isOpen then
+            closeDropdown()
+        else
+            openDropdown()
+        end
+    end
+
+    header.Activated:Connect(toggleDropdown)
 
     renderOptions()
     syncState()
@@ -1233,7 +1482,8 @@ function MultiDropdown.new(parent, config)
         if typeof(arr) == "table" then for _, item in ipairs(arr) do selected[item] = true end end
         valueLabel.Text = getSummary() .. (isOpen and "  ▲" or "  ▼")
         renderOptions()
-        syncState()
+        local list = syncState()
+        if config.Callback then task.spawn(config.Callback, list) end
     end)
 
     return {
@@ -1305,7 +1555,7 @@ function ColorPicker.new(parent, config)
         if config.Callback then task.spawn(config.Callback, curColor) end
     end
 
-    preview.MouseButton1Click:Connect(function()
+    preview.Activated:Connect(function()
         pIdx = (pIdx % #presets) + 1
         applyColor(presets[pIdx])
     end)
@@ -1365,6 +1615,12 @@ function Keybind.new(parent, config)
     })
     Utility.AddCorner(bindBtn, 4); Utility.AddStroke(bindBtn, Theme.Border, 1)
 
+    local keyConn = nil
+    local function stopListening()
+        listening = false
+        if keyConn then keyConn:Disconnect(); keyConn = nil end
+    end
+
     local function applyKey(k)
         curKey = k
         bindBtn.Text = "[" .. curKey.Name .. "]"
@@ -1374,17 +1630,22 @@ function Keybind.new(parent, config)
         if config.Callback then task.spawn(config.Callback, curKey) end
     end
 
-    bindBtn.MouseButton1Click:Connect(function()
+    bindBtn.Activated:Connect(function()
+        if listening then return end
         listening = true
         bindBtn.Text = "[...]"
         bindBtn.TextColor3 = Theme.Text
-    end)
-
-    UserInputService.InputBegan:Connect(function(input)
-        if listening and input.UserInputType == Enum.UserInputType.Keyboard then
-            listening = false
-            applyKey(input.KeyCode)
-        end
+        if keyConn then keyConn:Disconnect() end
+        keyConn = UserInputService.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                stopListening()
+                applyKey(input.KeyCode)
+            elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                stopListening()
+                bindBtn.Text = "[" .. curKey.Name .. "]"
+                bindBtn.TextColor3 = Theme.Accent
+            end
+        end)
     end)
 
     ConfigSystem.Register(keyName, function() return curKey end, function(k) applyKey(k) end)
@@ -1723,9 +1984,9 @@ function NovaUI:CreateWindow(config)
     -- Device Screen & Frame Size Presets
     local DevicePresets = {
         ["PC"] = { Name = "PC (Standard)", Size = UDim2.fromOffset(740, 490), Scale = 1.0 },
-        ["Android"] = { Name = "Android / Mobile", Size = UDim2.fromOffset(630, 360), Scale = 0.92 },
+        ["Android"] = { Name = "Android / Mobile", Size = UDim2.fromOffset(550, 315), Scale = 0.84 },
         ["Tablet"] = { Name = "Tablet / iPad", Size = UDim2.fromOffset(660, 420), Scale = 0.95 },
-        ["Compact"] = { Name = "Compact / Mini", Size = UDim2.fromOffset(540, 330), Scale = 0.88 }
+        ["Compact"] = { Name = "Compact / Mini", Size = UDim2.fromOffset(510, 290), Scale = 0.80 }
     }
 
     local savedPresetKey = ConfigData["_Liyhub_DevicePreset"]
@@ -1748,6 +2009,20 @@ function NovaUI:CreateWindow(config)
     }) :: Frame
     Utility.AddCorner(mainFrame, 10); Utility.AddStroke(mainFrame, Theme.Border, 1)
 
+    -- Pin clamping helper: ensures floating pin stays 100% visible on any screen resolution
+    local function clampPinPosition(pos)
+        local vp = Utility.GetViewportSize()
+        local xOffset = pos.X.Scale * vp.X + pos.X.Offset
+        local yOffset = pos.Y.Scale * vp.Y + pos.Y.Offset
+        local minX = 8
+        local maxX = math.max(minX, vp.X - 110)
+        local minY = 28
+        local maxY = math.max(minY, vp.Y - 40)
+        local clampedX = math.clamp(xOffset, minX, maxX)
+        local clampedY = math.clamp(yOffset, minY, maxY)
+        return UDim2.new(0, clampedX, 0, clampedY)
+    end
+
     -- Default pin position: Top Center Dynamic Island (UDim2.new(0.5, -58, 0, 50)) avoids Roblox topbar/chat/menu collision
     local defaultPinPos = config.PinPosition or UDim2.new(0.5, -58, 0, 50)
     local savedPinPos = ConfigData["_Liyhub_PinPos"]
@@ -1756,14 +2031,15 @@ function NovaUI:CreateWindow(config)
             defaultPinPos = UDim2.new(savedPinPos.X[1] or 0.5, savedPinPos.X[2] or -58, savedPinPos.Y[1] or 0, savedPinPos.Y[2] or 50)
         end)
     end
+    defaultPinPos = clampPinPosition(defaultPinPos)
 
     local titleText = config.Title
-    if not titleText or titleText == "" or titleText == "LiyHub" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
+    if not titleText or titleText == "" then
+        titleText = "LiyHub | " .. DetectedGameName
+    elseif titleText == "LiyHub" or titleText == "LIYHUB.CC" or titleText == "LIYHUB" then
         titleText = "LiyHub | " .. DetectedGameName
     elseif titleText:find("{game}") then
         titleText = titleText:gsub("{game}", DetectedGameName)
-    elseif not titleText:find("|") and not titleText:lower():find(DetectedGameName:lower()) then
-        titleText = titleText .. " | " .. DetectedGameName
     end
     if config.Footer and config.Footer ~= "" then
         titleText = titleText .. " " .. config.Footer
@@ -1811,42 +2087,66 @@ function NovaUI:CreateWindow(config)
         pinStroke.Transparency = 0.3
     end)
 
-    -- Window Toggle Engine: Instant 1-Click State Switching (Zero lag / Zero blocking)
+    -- Dynamic viewport listener: keep pin and mainFrame clamped if screen orientation/size changes
+    local function clampWindowToBounds()
+        if not mainFrame or not mainFrame.Parent then return end
+        local vp = Utility.GetViewportSize()
+        local maxW = math.max(320, vp.X - 16)
+        local maxH = math.max(240, vp.Y - 16)
+        local curW = math.min(mainFrame.Size.X.Offset, maxW)
+        local curH = math.min(mainFrame.Size.Y.Offset, maxH)
+        mainFrame.Size = UDim2.fromOffset(curW, curH)
+
+        local maxX = math.max(8, vp.X - curW - 8)
+        local maxY = math.max(8, vp.Y - curH - 8)
+        local curX = mainFrame.Position.X.Scale * vp.X + mainFrame.Position.X.Offset
+        local curY = mainFrame.Position.Y.Scale * vp.Y + mainFrame.Position.Y.Offset
+        local clampedX = math.clamp(curX, 8, maxX)
+        local clampedY = math.clamp(curY, 8, maxY)
+        mainFrame.Position = UDim2.new(0, clampedX, 0, clampedY)
+    end
+
+    local function onViewportChanged()
+        if pinWidget and pinWidget.Parent then
+            pinWidget.Position = clampPinPosition(pinWidget.Position)
+        end
+        clampWindowToBounds()
+    end
+    local cam = workspace.CurrentCamera
+    if cam then
+        cam:GetPropertyChangedSignal("ViewportSize"):Connect(onViewportChanged)
+    end
+    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        local newCam = workspace.CurrentCamera
+        if newCam then
+            newCam:GetPropertyChangedSignal("ViewportSize"):Connect(onViewportChanged)
+            onViewportChanged()
+        end
+    end)
+
+    -- Window Toggle Engine: Predictable state transitions, single execution, no race conditions
+    local isToggling = false
     local function toggleWindow(forceState)
+        if isToggling then return end
+        isToggling = true
+
         local targetVisible = (forceState ~= nil) and forceState or (not mainFrame.Visible)
         if targetVisible then
-            mainFrame.Position = UDim2.new(0.5, -initSize.X.Offset/2, 0.5, -initSize.Y.Offset/2)
+            local vp = Utility.GetViewportSize()
+            local curX = mainFrame.Position.X.Scale * vp.X + mainFrame.Position.X.Offset
+            local curY = mainFrame.Position.Y.Scale * vp.Y + mainFrame.Position.Y.Offset
+            if curX < 0 or curX > vp.X - 50 or curY < 0 or curY > vp.Y - 50 then
+                mainFrame.Position = UDim2.new(0.5, -initSize.X.Offset/2, 0.5, -initSize.Y.Offset/2)
+            end
             mainFrame.Visible = true
-            pinWidget.Visible = isPinned and true or false
+            pinWidget.Visible = isPinned
         else
             mainFrame.Visible = false
             pinWidget.Visible = true
         end
-    end
 
-    -- Universal tap & click binding helper (Supports Mouse, Touch Tap, and Activated with debounce)
-    local function bindUniversalClick(button, callback)
-        local debounce = false
-        local touchActive = false
-        local function trigger()
-            if debounce then return end
-            debounce = true
-            task.delay(0.2, function() debounce = false end)
-            callback()
-        end
-
-        button.Activated:Connect(trigger)
-        button.MouseButton1Click:Connect(trigger)
-        button.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch then
-                touchActive = true
-            end
-        end)
-        button.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch and touchActive then
-                touchActive = false
-                trigger()
-            end
+        task.defer(function()
+            isToggling = false
         end)
     end
 
@@ -1854,13 +2154,13 @@ function NovaUI:CreateWindow(config)
         toggleWindow()
     end
 
-    bindUniversalClick(pinWidget, onPinWidgetToggle)
-
-    -- Draggable with threshold: dragging never triggers accidental window toggle, and auto-saves custom position
+    -- Draggable with click: single input state machine handles tap to toggle and drag to relocate
     Utility.MakeDraggableWithClick(pinWidget, pinWidget, onPinWidgetToggle, function(finalPos)
+        local clamped = clampPinPosition(finalPos)
+        pinWidget.Position = clamped
         ConfigData["_Liyhub_PinPos"] = {
-            X = { finalPos.X.Scale, finalPos.X.Offset },
-            Y = { finalPos.Y.Scale, finalPos.Y.Offset }
+            X = { clamped.X.Scale, clamped.X.Offset },
+            Y = { clamped.Y.Scale, clamped.Y.Offset }
         }
         ConfigSystem.QueueSave()
     end)
@@ -2031,11 +2331,11 @@ function NovaUI:CreateWindow(config)
     Utility.AddCorner(pinBtn, 6)
     local pinBtnStroke = Utility.AddStroke(pinBtn, isPinned and Theme.Accent or Theme.Border, 1)
 
-    bindUniversalClick(pinBtn, function()
+    pinBtn.Activated:Connect(function()
         toggleWindow(false)
         Notification.Notify({
             Title = "Pinned to Screen",
-            Content = "UI collapsed to floating pin tab. 1-click pin tab to reopen.",
+            Content = "UI collapsed to floating pin tab. Tap floating pin to reopen.",
             Duration = 2.0
         })
     end)
@@ -2071,7 +2371,7 @@ function NovaUI:CreateWindow(config)
         minStroke.Color = Theme.Border
     end)
 
-    bindUniversalClick(minBtn, function()
+    minBtn.Activated:Connect(function()
         toggleWindow(false)
         Notification.Notify({ Title = "Minimized", Content = "Tap floating pin tab or press toggle key to restore", Duration = 2.0 })
     end)
@@ -2104,7 +2404,7 @@ function NovaUI:CreateWindow(config)
         closeBtn.TextColor3 = Theme.Text
     end)
 
-    bindUniversalClick(closeBtn, function()
+    closeBtn.Activated:Connect(function()
         if getgenv then getgenv()._LIYHUB_CLEANUP = nil end
         sg:Destroy()
     end)
@@ -2153,7 +2453,7 @@ function NovaUI:CreateWindow(config)
         Parent = sidebarFrame
     })
 
-    local settingsBtn = Utility.Create("TextButton", { Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 1, -96), BackgroundColor3 = Theme.SurfaceSecondary, Font = Enum.Font.GothamMedium, Text = "  ⚙  Settings", TextColor3 = Theme.Text, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, Parent = sidebarFrame })
+    local settingsBtn = Utility.Create("TextButton", { Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 1, -96), BackgroundColor3 = Theme.SurfaceSecondary, Font = Enum.Font.GothamMedium, Text = "  •  Settings", TextColor3 = Theme.Text, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, Parent = sidebarFrame })
     Utility.AddCorner(settingsBtn, 6); Utility.AddStroke(settingsBtn, Theme.Border, 1); Utility.AddPadding(settingsBtn, 0, 0, 8, 8)
 
     local profileCard = Utility.Create("Frame", { Size = UDim2.new(1, -16, 0, 48), Position = UDim2.new(0, 8, 1, -56), BackgroundColor3 = Theme.SurfaceSecondary, Parent = sidebarFrame })
@@ -2203,7 +2503,7 @@ function NovaUI:CreateWindow(config)
         for idx, opt in ipairs(options) do
             local ob = Utility.Create("TextButton", { Size = UDim2.new(1 / #options, -((#options - 1) * 8 / #options), 1, 0), BackgroundColor3 = idx == 2 and Theme.Accent or Theme.SurfaceSecondary, Font = Enum.Font.GothamMedium, Text = opt, TextColor3 = Theme.Text, TextSize = 12, AutoButtonColor = false, Parent = row })
             Utility.AddCorner(ob, 6); table.insert(optBtns, ob)
-            ob.MouseButton1Click:Connect(function()
+            ob.Activated:Connect(function()
                 for _, b in ipairs(optBtns) do b.BackgroundColor3 = (b == ob) and Theme.Accent or Theme.SurfaceSecondary end
                 if callback then callback(opt) end
             end)
@@ -2276,7 +2576,7 @@ function NovaUI:CreateWindow(config)
         })
         Utility.AddCorner(btn, 6)
         presetBtns[pKey] = btn
-        btn.MouseButton1Click:Connect(function()
+        btn.Activated:Connect(function()
             applyDevicePreset(pKey)
         end)
     end
@@ -2318,20 +2618,28 @@ function NovaUI:CreateWindow(config)
     Utility.AddCorner(kbInputBtn, 4); Utility.AddStroke(kbInputBtn, Theme.Border, 1)
 
     local isListeningForToggleKey = false
-    kbInputBtn.MouseButton1Click:Connect(function()
+    local kbListenConn = nil
+    kbInputBtn.Activated:Connect(function()
+        if isListeningForToggleKey then return end
         isListeningForToggleKey = true
         kbInputBtn.Text = "[Press Any Key]"
         kbInputBtn.TextColor3 = Color3.fromRGB(255, 200, 60)
-    end)
-
-    UserInputService.InputBegan:Connect(function(input)
-        if isListeningForToggleKey and input.UserInputType == Enum.UserInputType.Keyboard then
-            isListeningForToggleKey = false
-            setToggleKey(input.KeyCode)
-            kbInputBtn.Text = "[" .. input.KeyCode.Name .. "]"
-            kbInputBtn.TextColor3 = Theme.Accent
-            Notification.Notify({ Title = "Keybind Updated", Content = "UI Toggle Key set to " .. input.KeyCode.Name, Type = "Success" })
-        end
+        if kbListenConn then kbListenConn:Disconnect() end
+        kbListenConn = UserInputService.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                isListeningForToggleKey = false
+                if kbListenConn then kbListenConn:Disconnect(); kbListenConn = nil end
+                setToggleKey(input.KeyCode)
+                kbInputBtn.Text = "[" .. input.KeyCode.Name .. "]"
+                kbInputBtn.TextColor3 = Theme.Accent
+                Notification.Notify({ Title = "Keybind Updated", Content = "UI Toggle Key set to " .. input.KeyCode.Name, Type = "Success" })
+            elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isListeningForToggleKey = false
+                if kbListenConn then kbListenConn:Disconnect(); kbListenConn = nil end
+                kbInputBtn.Text = "[" .. currentToggleKey.Name .. "]"
+                kbInputBtn.TextColor3 = Theme.Accent
+            end
+        end)
     end)
 
     table.insert(onKeybindChangedCallbacks, function(k)
@@ -2356,7 +2664,7 @@ function NovaUI:CreateWindow(config)
             Parent = presetRow
         })
         Utility.AddCorner(pb, 4); Utility.AddStroke(pb, Theme.Border, 1)
-        pb.MouseButton1Click:Connect(function()
+        pb.Activated:Connect(function()
             local targetCode = Enum.KeyCode[kName]
             if targetCode then
                 setToggleKey(targetCode)
@@ -2411,11 +2719,12 @@ function NovaUI:CreateWindow(config)
             Parent = pinPosRow
         })
         Utility.AddCorner(ppb, 4); Utility.AddStroke(ppb, Theme.Border, 1)
-        ppb.MouseButton1Click:Connect(function()
-            pinWidget.Position = pData.Pos
+        ppb.Activated:Connect(function()
+            local clamped = clampPinPosition(pData.Pos)
+            pinWidget.Position = clamped
             ConfigData["_Liyhub_PinPos"] = {
-                X = { pData.Pos.X.Scale, pData.Pos.X.Offset },
-                Y = { pData.Pos.Y.Scale, pData.Pos.Y.Offset }
+                X = { clamped.X.Scale, clamped.X.Offset },
+                Y = { clamped.Y.Scale, clamped.Y.Offset }
             }
             ConfigSystem.QueueSave()
             Notification.Notify({ Title = "Pin Relocated", Content = "Floating pin set to " .. pData.Name, Type = "Success" })
@@ -2564,7 +2873,7 @@ function NovaUI:CreateWindow(config)
     Utility.AddCorner(refreshBtn, 6); Utility.AddStroke(refreshBtn, Theme.Border, 1)
 
     -- Handlers
-    saveCreateBtn.MouseButton1Click:Connect(function()
+    saveCreateBtn.Activated:Connect(function()
         local name = configInput.Text:gsub("^%s*(.-)%s*$", "%1")
         if name == "" then
             name = selectProfile or "Default"
@@ -2576,7 +2885,7 @@ function NovaUI:CreateWindow(config)
         if chloexNotif then chloexNotif("Saved config: " .. saved) end
     end)
 
-    loadBtn.MouseButton1Click:Connect(function()
+    loadBtn.Activated:Connect(function()
         local target = selectProfile or ConfigSystem.CurrentProfile or "Default"
         ConfigSystem.Load(target)
         curBadge.Text = target
@@ -2584,7 +2893,7 @@ function NovaUI:CreateWindow(config)
         if chloexNotif then chloexNotif("Loaded config: " .. target) end
     end)
 
-    deleteBtn.MouseButton1Click:Connect(function()
+    deleteBtn.Activated:Connect(function()
         local target = selectProfile or ConfigSystem.CurrentProfile or "Default"
         if target == "Default" then
             Notification.Notify({ Title = "Delete Blocked", Content = "Cannot delete 'Default' profile", Type = "Warning" })
@@ -2596,14 +2905,14 @@ function NovaUI:CreateWindow(config)
         if chloexNotif then chloexNotif("Deleted config: " .. target) end
     end)
 
-    refreshBtn.MouseButton1Click:Connect(function()
+    refreshBtn.Activated:Connect(function()
         refreshDropdown()
         Notification.Notify({ Title = "Configs Refreshed", Content = "Refreshed list (" .. #ConfigSystem.Profiles .. " profiles)", Type = "Info" })
     end)
 
     local tabs, tabButtons = {}, {}
 
-    settingsBtn.MouseButton1Click:Connect(function()
+    local function openSettings()
         for _, tData in ipairs(tabButtons) do
             tData.Tab:SetVisible(false)
             if tData._setSelected then tData._setSelected(false) end
@@ -2616,7 +2925,8 @@ function NovaUI:CreateWindow(config)
         end
         settingsPage.Visible = true
         settingsBtn.BackgroundColor3 = Theme.SurfaceElevated
-    end)
+    end
+    settingsBtn.Activated:Connect(openSettings)
 
     local windowObj = {}
     function windowObj:AddTabSection(title)
@@ -2654,10 +2964,10 @@ function NovaUI:CreateWindow(config)
         local name, tabIcon
         if typeof(nameOrConfig) == "table" then
             name = nameOrConfig.Name or "Tab"
-            tabIcon = nameOrConfig.Icon or "◈"
+            tabIcon = nameOrConfig.Icon or "•"
         else
             name = tostring(nameOrConfig or "Tab")
-            tabIcon = icon or "◈"
+            tabIcon = icon or "•"
         end
         local newTab = Tab.new(contentArea, name)
         table.insert(tabs, newTab)
@@ -2727,7 +3037,7 @@ function NovaUI:CreateWindow(config)
                 end
             end
         end
-        btn.MouseButton1Click:Connect(select)
+        btn.Activated:Connect(select)
 
         if #tabs == 1 then select() end
         return newTab
@@ -2754,10 +3064,11 @@ function NovaUI:CreateWindow(config)
     end
     function windowObj:SetPinPosition(newPos)
         if typeof(newPos) == "UDim2" then
-            pinWidget.Position = newPos
+            local clamped = clampPinPosition(newPos)
+            pinWidget.Position = clamped
             ConfigData["_Liyhub_PinPos"] = {
-                X = { newPos.X.Scale, newPos.X.Offset },
-                Y = { newPos.Y.Scale, newPos.Y.Offset }
+                X = { clamped.X.Scale, clamped.X.Offset },
+                Y = { clamped.Y.Scale, clamped.Y.Offset }
             }
             ConfigSystem.QueueSave()
         end
@@ -2768,16 +3079,24 @@ function NovaUI:CreateWindow(config)
     function windowObj:Minimize() toggleWindow(false) end
     function windowObj:SaveConfig() ConfigSystem.Save() end
     function windowObj:LoadConfig() ConfigSystem.Load() end
+    function windowObj:SetDevicePreset(presetKey)
+        applyDevicePreset(presetKey)
+    end
+    function windowObj:GetDevicePreset()
+        return activePresetKey
+    end
+    function windowObj:GetDevicePresets()
+        return DevicePresets
+    end
     function windowObj:Destroy()
         if getgenv then getgenv()._LIYHUB_CLEANUP = nil end
-        sg:Destroy()
+        if ActiveDropdownCloser then pcall(ActiveDropdownCloser) end
+        pcall(function() sg:Destroy() end)
     end
     return windowObj
 end
 
 function NovaUI:Notify(config) Notification.Notify(config) end
-
-
 
 -- LIVE DEMO: FULL 10-COMPONENT INTEGRATION SHOWCASE WITH FUNCTIONAL MODULES
 -- ============================================================================
