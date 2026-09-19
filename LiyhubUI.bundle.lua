@@ -31,6 +31,14 @@ if getgenv and getgenv()._LIYHUB_CLEANUP then
     pcall(getgenv()._LIYHUB_CLEANUP)
     getgenv()._LIYHUB_CLEANUP = nil
 end
+if getgenv and getgenv()._LIYHUB_DRAWING then
+    pcall(function()
+        if getgenv()._LIYHUB_DRAWING.FOV then pcall(function() getgenv()._LIYHUB_DRAWING.FOV:Remove() end) end
+        if getgenv()._LIYHUB_DRAWING.Watermark then pcall(function() getgenv()._LIYHUB_DRAWING.Watermark:Remove() end) end
+        if getgenv()._LIYHUB_DRAWING.Connection then pcall(function() getgenv()._LIYHUB_DRAWING.Connection:Disconnect() end) end
+    end)
+    getgenv()._LIYHUB_DRAWING = nil
+end
 
 -- Stealth container resolution (prevents game DescendantAdded / ChildAdded detection)
 local function getSafeGuiContainer(): Instance
@@ -244,6 +252,18 @@ function Utility.GetViewportSize()
     return Vector2.new(1920, 1080)
 end
 
+local function getGuiScale(g)
+    local cur = g
+    while cur do
+        local scaleObj = cur:FindFirstChildOfClass("UIScale")
+        if scaleObj and scaleObj.Scale > 0 then
+            return scaleObj.Scale
+        end
+        cur = cur.Parent
+    end
+    return 1
+end
+
 function Utility.MakeDraggable(gui, dragPart, ignoreElement)
     local activeInput = nil
     local dragStart = nil
@@ -264,7 +284,7 @@ function Utility.MakeDraggable(gui, dragPart, ignoreElement)
         isDragging = false
     end
 
-    dragPart.InputBegan:Connect(function(input)
+    local inputConn = dragPart.InputBegan:Connect(function(input)
         if activeInput then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             if ignoreElement and ignoreElement.Parent then
@@ -292,12 +312,21 @@ function Utility.MakeDraggable(gui, dragPart, ignoreElement)
                     end
                     if isDragging then
                         local vp = Utility.GetViewportSize()
+                        local scale = getGuiScale(gui)
                         local guiSize = gui.AbsoluteSize
-                        local curAbsX = startPos.X.Scale * vp.X + startPos.X.Offset + delta.X
-                        local curAbsY = startPos.Y.Scale * vp.Y + startPos.Y.Offset + delta.Y
-                        local targetX = math.clamp(curAbsX, 8, math.max(8, vp.X - guiSize.X - 8))
-                        local targetY = math.clamp(curAbsY, 8, math.max(8, vp.Y - guiSize.Y - 8))
-                        gui.Position = UDim2.new(0, targetX, 0, targetY)
+                        local deltaLocalX = delta.X / scale
+                        local deltaLocalY = delta.Y / scale
+
+                        local curAbsX = (startPos.X.Scale * (vp.X / scale) + startPos.X.Offset + deltaLocalX) * scale
+                        local curAbsY = (startPos.Y.Scale * (vp.Y / scale) + startPos.Y.Offset + deltaLocalY) * scale
+
+                        local maxScreenX = math.max(8, vp.X - guiSize.X - 8)
+                        local maxScreenY = math.max(8, vp.Y - guiSize.Y - 8)
+
+                        local clampedScreenX = math.clamp(curAbsX, 8, maxScreenX)
+                        local clampedScreenY = math.clamp(curAbsY, 8, maxScreenY)
+
+                        gui.Position = UDim2.new(0, math.round(clampedScreenX / scale), 0, math.round(clampedScreenY / scale))
                     end
                 end
             end)
@@ -317,6 +346,11 @@ function Utility.MakeDraggable(gui, dragPart, ignoreElement)
             end)
         end
     end)
+
+    return function()
+        cleanup()
+        if inputConn then inputConn:Disconnect() end
+    end
 end
 
 function Utility.MakeDraggableWithClick(gui, dragPart, onClick, onDragEnd)
@@ -339,7 +373,7 @@ function Utility.MakeDraggableWithClick(gui, dragPart, onClick, onDragEnd)
         isDragging = false
     end
 
-    dragPart.InputBegan:Connect(function(input)
+    local inputConn = dragPart.InputBegan:Connect(function(input)
         if activeInput then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             activeInput = input
@@ -357,12 +391,21 @@ function Utility.MakeDraggableWithClick(gui, dragPart, onClick, onDragEnd)
                     end
                     if isDragging then
                         local vp = Utility.GetViewportSize()
+                        local scale = getGuiScale(gui)
                         local guiSize = gui.AbsoluteSize
-                        local curAbsX = startPos.X.Scale * vp.X + startPos.X.Offset + delta.X
-                        local curAbsY = startPos.Y.Scale * vp.Y + startPos.Y.Offset + delta.Y
-                        local targetX = math.clamp(curAbsX, 8, math.max(8, vp.X - guiSize.X - 8))
-                        local targetY = math.clamp(curAbsY, 8, math.max(8, vp.Y - guiSize.Y - 8))
-                        gui.Position = UDim2.new(0, targetX, 0, targetY)
+                        local deltaLocalX = delta.X / scale
+                        local deltaLocalY = delta.Y / scale
+
+                        local curAbsX = (startPos.X.Scale * (vp.X / scale) + startPos.X.Offset + deltaLocalX) * scale
+                        local curAbsY = (startPos.Y.Scale * (vp.Y / scale) + startPos.Y.Offset + deltaLocalY) * scale
+
+                        local maxScreenX = math.max(8, vp.X - guiSize.X - 8)
+                        local maxScreenY = math.max(8, vp.Y - guiSize.Y - 8)
+
+                        local clampedScreenX = math.clamp(curAbsX, 8, maxScreenX)
+                        local clampedScreenY = math.clamp(curAbsY, 8, maxScreenY)
+
+                        gui.Position = UDim2.new(0, math.round(clampedScreenX / scale), 0, math.round(clampedScreenY / scale))
                     end
                 end
             end)
@@ -389,6 +432,11 @@ function Utility.MakeDraggableWithClick(gui, dragPart, onClick, onDragEnd)
             end)
         end
     end)
+
+    return function()
+        cleanup()
+        if inputConn then inputConn:Disconnect() end
+    end
 end
 
 -- ============================================================================
@@ -682,7 +730,7 @@ function DrawingOverlay.Init()
         DrawingOverlay.Watermark = text
 
         local lastWm = 0
-        RunService.RenderStepped:Connect(function()
+        local rsConn = RunService.RenderStepped:Connect(function()
             local mousePos = UserInputService:GetMouseLocation()
             if circle and circle.Visible then
                 circle.Position = mousePos
@@ -698,6 +746,13 @@ function DrawingOverlay.Init()
                 text.Text = string.format("LIYHUB v2.4 | FPS: %d | PING: %dms", AnimationEngine.FPS, pingVal)
             end
         end)
+        if getgenv then
+            getgenv()._LIYHUB_DRAWING = {
+                FOV = circle,
+                Watermark = text,
+                Connection = rsConn
+            }
+        end
     end)
 end
 DrawingOverlay.Init()
@@ -1138,19 +1193,7 @@ function Dropdown.new(parent, config)
         isOpen = true
         updateContainerHeight()
 
-        local vp = Utility.GetViewportSize()
-        local count = #options
-        local maxVisible = 5
-        local itemHeight = 26
-        local padding = 3
-        local clampedH = math.min(count * itemHeight + math.max(0, count - 1) * padding + 8, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
-        local framePos = frame.AbsolutePosition
-        local spaceBelow = vp.Y - (framePos.Y + 36)
-        if spaceBelow < clampedH and framePos.Y > clampedH then
-            optContainer.Position = UDim2.new(0, 0, 0, -clampedH - 4)
-        else
-            optContainer.Position = UDim2.new(0, 0, 0, 30)
-        end
+        optContainer.Position = UDim2.new(0, 0, 0, 30)
 
         frame.ZIndex = 25
         optContainer.ZIndex = 26
@@ -1385,19 +1428,7 @@ function MultiDropdown.new(parent, config)
         isOpen = true
         updateContainerHeight()
 
-        local vp = Utility.GetViewportSize()
-        local count = #options
-        local maxVisible = 5
-        local itemHeight = 26
-        local padding = 3
-        local clampedH = math.min(count * itemHeight + math.max(0, count - 1) * padding + 8, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
-        local framePos = frame.AbsolutePosition
-        local spaceBelow = vp.Y - (framePos.Y + 36)
-        if spaceBelow < clampedH and framePos.Y > clampedH then
-            optContainer.Position = UDim2.new(0, 0, 0, -clampedH - 4)
-        else
-            optContainer.Position = UDim2.new(0, 0, 0, 30)
-        end
+        optContainer.Position = UDim2.new(0, 0, 0, 30)
 
         frame.ZIndex = 25
         optContainer.ZIndex = 26
@@ -1873,7 +1904,7 @@ function Tab.new(parent, name)
 
     self.ColumnContainer = Utility.Create("Frame", {
         Name = "ColumnContainer",
-        Size = UDim2.new(1, -32, 0, 0),
+        Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
         Parent = self.Frame
@@ -1897,6 +1928,24 @@ function Tab.new(parent, name)
         Parent = self.ColumnContainer
     })
     Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 12), Parent = self.RightColumn })
+
+    local function updateAdaptiveColumns()
+        local availW = self.ColumnContainer.AbsoluteSize.X
+        if availW > 0 and availW < 480 then
+            self.LeftColumn.Size = UDim2.new(1, 0, 0, 0)
+            self.LeftColumn.Position = UDim2.fromOffset(0, 0)
+            self.RightColumn.Size = UDim2.new(1, 0, 0, 0)
+            self.RightColumn.Position = UDim2.new(0, 0, 0, self.LeftColumn.AbsoluteSize.Y + 12)
+        else
+            self.LeftColumn.Size = UDim2.new(0.5, -6, 0, 0)
+            self.LeftColumn.Position = UDim2.fromOffset(0, 0)
+            self.RightColumn.Size = UDim2.new(0.5, -6, 0, 0)
+            self.RightColumn.Position = UDim2.new(0.5, 6, 0, 0)
+        end
+    end
+
+    self.ColumnContainer:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateAdaptiveColumns)
+    self.LeftColumn:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateAdaptiveColumns)
 
     return self
 end
@@ -2009,18 +2058,49 @@ function NovaUI:CreateWindow(config)
     }) :: Frame
     Utility.AddCorner(mainFrame, 10); Utility.AddStroke(mainFrame, Theme.Border, 1)
 
+    local windowConnections = {}
+    local isDestroyed = false
+    local function destroyWindow()
+        if isDestroyed then return end
+        isDestroyed = true
+        if getgenv and getgenv()._LIYHUB_CLEANUP then
+            getgenv()._LIYHUB_CLEANUP = nil
+        end
+        if ActiveDropdownCloser then
+            pcall(ActiveDropdownCloser)
+        end
+        for _, conn in ipairs(windowConnections) do
+            if typeof(conn) == "RBXScriptConnection" then
+                pcall(function() conn:Disconnect() end)
+            elseif typeof(conn) == "table" and type(conn.Disconnect) == "function" then
+                pcall(function() conn:Disconnect() end)
+            end
+        end
+        windowConnections = {}
+        pcall(function() sg:Destroy() end)
+    end
+    if getgenv then
+        getgenv()._LIYHUB_CLEANUP = destroyWindow
+    end
+
     -- Pin clamping helper: ensures floating pin stays 100% visible on any screen resolution
     local function clampPinPosition(pos)
         local vp = Utility.GetViewportSize()
-        local xOffset = pos.X.Scale * vp.X + pos.X.Offset
-        local yOffset = pos.Y.Scale * vp.Y + pos.Y.Offset
-        local minX = 8
-        local maxX = math.max(minX, vp.X - 110)
-        local minY = 28
-        local maxY = math.max(minY, vp.Y - 40)
-        local clampedX = math.clamp(xOffset, minX, maxX)
-        local clampedY = math.clamp(yOffset, minY, maxY)
-        return UDim2.new(0, clampedX, 0, clampedY)
+        local scale = (sgScale and sgScale.Scale) or 1
+        local actualW = (pinWidget and pinWidget.AbsoluteSize.X > 0 and pinWidget.AbsoluteSize.X) or (110 * scale)
+        local actualH = (pinWidget and pinWidget.AbsoluteSize.Y > 0 and pinWidget.AbsoluteSize.Y) or (32 * scale)
+        local minScreenX = 8
+        local maxScreenX = math.max(minScreenX, vp.X - actualW - 8)
+        local minScreenY = 28
+        local maxScreenY = math.max(minScreenY, vp.Y - actualH - 8)
+
+        local screenX = (pos.X.Scale * (vp.X / scale) + pos.X.Offset) * scale
+        local screenY = (pos.Y.Scale * (vp.Y / scale) + pos.Y.Offset) * scale
+
+        local clampedScreenX = math.clamp(screenX, minScreenX, maxScreenX)
+        local clampedScreenY = math.clamp(screenY, minScreenY, maxScreenY)
+
+        return UDim2.new(0, math.round(clampedScreenX / scale), 0, math.round(clampedScreenY / scale))
     end
 
     -- Default pin position: Top Center Dynamic Island (UDim2.new(0.5, -58, 0, 50)) avoids Roblox topbar/chat/menu collision
@@ -2091,19 +2171,26 @@ function NovaUI:CreateWindow(config)
     local function clampWindowToBounds()
         if not mainFrame or not mainFrame.Parent then return end
         local vp = Utility.GetViewportSize()
-        local maxW = math.max(320, vp.X - 16)
-        local maxH = math.max(240, vp.Y - 16)
-        local curW = math.min(mainFrame.Size.X.Offset, maxW)
-        local curH = math.min(mainFrame.Size.Y.Offset, maxH)
+        local scale = (sgScale and sgScale.Scale) or 1
+        local maxLocalW = math.max(320, math.floor((vp.X - 16) / scale))
+        local maxLocalH = math.max(240, math.floor((vp.Y - 16) / scale))
+        local curW = math.min(mainFrame.Size.X.Offset, maxLocalW)
+        local curH = math.min(mainFrame.Size.Y.Offset, maxLocalH)
         mainFrame.Size = UDim2.fromOffset(curW, curH)
 
-        local maxX = math.max(8, vp.X - curW - 8)
-        local maxY = math.max(8, vp.Y - curH - 8)
-        local curX = mainFrame.Position.X.Scale * vp.X + mainFrame.Position.X.Offset
-        local curY = mainFrame.Position.Y.Scale * vp.Y + mainFrame.Position.Y.Offset
-        local clampedX = math.clamp(curX, 8, maxX)
-        local clampedY = math.clamp(curY, 8, maxY)
-        mainFrame.Position = UDim2.new(0, clampedX, 0, clampedY)
+        local actualW = mainFrame.AbsoluteSize.X
+        local actualH = mainFrame.AbsoluteSize.Y
+        if actualW <= 0 or actualH <= 0 then
+            actualW = curW * scale
+            actualH = curH * scale
+        end
+        local maxScreenX = math.max(8, vp.X - actualW - 8)
+        local maxScreenY = math.max(8, vp.Y - actualH - 8)
+        local screenX = (mainFrame.Position.X.Scale * (vp.X / scale) + mainFrame.Position.X.Offset) * scale
+        local screenY = (mainFrame.Position.Y.Scale * (vp.Y / scale) + mainFrame.Position.Y.Offset) * scale
+        local clampedScreenX = math.clamp(screenX, 8, maxScreenX)
+        local clampedScreenY = math.clamp(screenY, 8, maxScreenY)
+        mainFrame.Position = UDim2.new(0, math.round(clampedScreenX / scale), 0, math.round(clampedScreenY / scale))
     end
 
     local function onViewportChanged()
@@ -2114,15 +2201,15 @@ function NovaUI:CreateWindow(config)
     end
     local cam = workspace.CurrentCamera
     if cam then
-        cam:GetPropertyChangedSignal("ViewportSize"):Connect(onViewportChanged)
+        table.insert(windowConnections, cam:GetPropertyChangedSignal("ViewportSize"):Connect(onViewportChanged))
     end
-    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    table.insert(windowConnections, workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
         local newCam = workspace.CurrentCamera
         if newCam then
-            newCam:GetPropertyChangedSignal("ViewportSize"):Connect(onViewportChanged)
+            table.insert(windowConnections, newCam:GetPropertyChangedSignal("ViewportSize"):Connect(onViewportChanged))
             onViewportChanged()
         end
-    end)
+    end))
 
     -- Window Toggle Engine: Predictable state transitions, single execution, no race conditions
     local isToggling = false
@@ -2132,16 +2219,12 @@ function NovaUI:CreateWindow(config)
 
         local targetVisible = (forceState ~= nil) and forceState or (not mainFrame.Visible)
         if targetVisible then
-            local vp = Utility.GetViewportSize()
-            local curX = mainFrame.Position.X.Scale * vp.X + mainFrame.Position.X.Offset
-            local curY = mainFrame.Position.Y.Scale * vp.Y + mainFrame.Position.Y.Offset
-            if curX < 0 or curX > vp.X - 50 or curY < 0 or curY > vp.Y - 50 then
-                mainFrame.Position = UDim2.new(0.5, -initSize.X.Offset/2, 0.5, -initSize.Y.Offset/2)
-            end
+            clampWindowToBounds()
             mainFrame.Visible = true
-            pinWidget.Visible = isPinned
+            pinWidget.Visible = false
         else
             mainFrame.Visible = false
+            pinWidget.Position = clampPinPosition(pinWidget.Position)
             pinWidget.Visible = true
         end
 
@@ -2155,7 +2238,7 @@ function NovaUI:CreateWindow(config)
     end
 
     -- Draggable with click: single input state machine handles tap to toggle and drag to relocate
-    Utility.MakeDraggableWithClick(pinWidget, pinWidget, onPinWidgetToggle, function(finalPos)
+    local cleanupPinDrag = Utility.MakeDraggableWithClick(pinWidget, pinWidget, onPinWidgetToggle, function(finalPos)
         local clamped = clampPinPosition(finalPos)
         pinWidget.Position = clamped
         ConfigData["_Liyhub_PinPos"] = {
@@ -2164,6 +2247,7 @@ function NovaUI:CreateWindow(config)
         }
         ConfigSystem.QueueSave()
     end)
+    table.insert(windowConnections, { Disconnect = cleanupPinDrag })
 
     -- Customizable UI Toggle Keybind Engine (SpeedHub / Custom Preference)
     local defaultToggleKey = config.ToggleKey or Enum.KeyCode.RightControl
@@ -2189,12 +2273,14 @@ function NovaUI:CreateWindow(config)
         end
     end
 
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    local toggleKeyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
+        if UserInputService:GetFocusedTextBox() then return end
         if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == currentToggleKey then
             toggleWindow()
         end
     end)
+    table.insert(windowConnections, toggleKeyConn)
 
     -- Top Header Bar (Rounded top corners matching mainFrame)
     local topBar = Utility.Create("Frame", { Name = "TopBar", Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = Theme.Surface, BorderSizePixel = 0, Parent = mainFrame })
@@ -2312,7 +2398,8 @@ function NovaUI:CreateWindow(config)
     })
 
     -- Make topBar draggable while protecting controls from drag interception
-    Utility.MakeDraggable(mainFrame, topBar, controls)
+    local cleanupTopDrag = Utility.MakeDraggable(mainFrame, topBar, controls)
+    table.insert(windowConnections, { Disconnect = cleanupTopDrag })
 
     -- 1. Pin Tab Button (📌) on LEFT (LayoutOrder = 1)
     local pinBtn = Utility.Create("TextButton", {
@@ -2405,8 +2492,7 @@ function NovaUI:CreateWindow(config)
     end)
 
     closeBtn.Activated:Connect(function()
-        if getgenv then getgenv()._LIYHUB_CLEANUP = nil end
-        sg:Destroy()
+        destroyWindow()
     end)
 
     -- Notification Stack
@@ -2416,7 +2502,7 @@ function NovaUI:CreateWindow(config)
 
     -- Main Content Layout (Sidebar rounded at bottom-left)
     local bodyFrame = Utility.Create("Frame", { Name = "BodyFrame", Size = UDim2.new(1, 0, 1, -38), Position = UDim2.new(0, 0, 0, 38), BackgroundTransparency = 1, Parent = mainFrame })
-    local sidebarFrame = Utility.Create("Frame", { Name = "SidebarFrame", Size = UDim2.new(0.25, 0, 1, 0), BackgroundColor3 = Theme.Surface, BorderSizePixel = 0, Parent = bodyFrame })
+    local sidebarFrame = Utility.Create("Frame", { Name = "SidebarFrame", Size = UDim2.new(0, 160, 1, 0), BackgroundColor3 = Theme.Surface, BorderSizePixel = 0, Parent = bodyFrame })
     Utility.AddCorner(sidebarFrame, 10)
     Utility.Create("Frame", { Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 0, 0), BackgroundColor3 = Theme.Surface, BorderSizePixel = 0, Parent = sidebarFrame })
     Utility.Create("Frame", { Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0), BackgroundColor3 = Theme.Border, BorderSizePixel = 0, ZIndex = 2, Parent = sidebarFrame })
@@ -2471,7 +2557,20 @@ function NovaUI:CreateWindow(config)
     Utility.Create("TextLabel", { Size = UDim2.new(1, -40, 0, 18), Position = UDim2.new(0, 38, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, Text = LocalPlayer and LocalPlayer.DisplayName or "Developer", TextColor3 = Theme.Text, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Parent = profileCard })
     Utility.Create("TextLabel", { Size = UDim2.new(1, -40, 0, 16), Position = UDim2.new(0, 38, 0, 18), BackgroundTransparency = 1, Font = Enum.Font.Gotham, Text = "Liyhub • User", TextColor3 = Theme.Accent, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, Parent = profileCard })
 
-    local contentArea = Utility.Create("Frame", { Name = "ContentArea", Size = UDim2.new(0.75, 0, 1, 0), Position = UDim2.new(0.25, 0, 0, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Parent = bodyFrame })
+    local contentArea = Utility.Create("Frame", { Name = "ContentArea", Size = UDim2.new(1, -160, 1, 0), Position = UDim2.new(0, 160, 0, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Parent = bodyFrame })
+
+    local function updateSidebarLayout()
+        local winW = mainFrame.AbsoluteSize.X
+        local sbWidth = 160
+        if winW > 0 then
+            sbWidth = math.clamp(math.floor(winW * 0.25), 135, 185)
+        end
+        sidebarFrame.Size = UDim2.new(0, sbWidth, 1, 0)
+        contentArea.Size = UDim2.new(1, -sbWidth, 1, 0)
+        contentArea.Position = UDim2.new(0, sbWidth, 0, 0)
+    end
+    table.insert(windowConnections, mainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateSidebarLayout))
+    updateSidebarLayout()
 
     -- Settings Page View with Clamped Height
     local settingsPage = Utility.Create("ScrollingFrame", {
@@ -2546,16 +2645,28 @@ function NovaUI:CreateWindow(config)
 
         local targetSize = preset.Size
         sgScale.Scale = preset.Scale
+
+        local vp = Utility.GetViewportSize()
+        local maxW = math.max(320, math.floor((vp.X - 16) / preset.Scale))
+        local maxH = math.max(240, math.floor((vp.Y - 16) / preset.Scale))
+        local effW = math.min(targetSize.X.Offset, maxW)
+        local effH = math.min(targetSize.Y.Offset, maxH)
+        local finalSize = UDim2.fromOffset(effW, effH)
+
         AnimationEngine.Tween(mainFrame, TWEEN_SMOOTH, {
-            Size = targetSize,
-            Position = UDim2.new(0.5, -targetSize.X.Offset/2, 0.5, -targetSize.Y.Offset/2)
+            Size = finalSize,
+            Position = UDim2.new(0.5, -effW/2, 0.5, -effH/2)
         })
         for k, b in pairs(presetBtns) do
             b.BackgroundColor3 = (k == pKey) and Theme.Accent or Theme.SurfaceSecondary
         end
+        if pinWidget and pinWidget.Parent then
+            pinWidget.Position = clampPinPosition(pinWidget.Position)
+        end
+        updateSidebarLayout()
         Notification.Notify({
             Title = "Device Preset",
-            Content = "Applied " .. preset.Name .. " (" .. tostring(targetSize.X.Offset) .. "x" .. tostring(targetSize.Y.Offset) .. ")",
+            Content = "Applied " .. preset.Name .. " (" .. tostring(finalSize.X.Offset) .. "x" .. tostring(finalSize.Y.Offset) .. ")",
             Type = "Success",
             Duration = 2.0
         })
@@ -3089,13 +3200,15 @@ function NovaUI:CreateWindow(config)
         return DevicePresets
     end
     function windowObj:Destroy()
-        if getgenv then getgenv()._LIYHUB_CLEANUP = nil end
-        if ActiveDropdownCloser then pcall(ActiveDropdownCloser) end
-        pcall(function() sg:Destroy() end)
+        destroyWindow()
+    end
+    function windowObj:Notify(config)
+        Notification.Notify(config)
     end
     return windowObj
 end
 
 function NovaUI:Notify(config) Notification.Notify(config) end
 
-return NovaUI
+local Liyhub = NovaUI
+return Liyhub
