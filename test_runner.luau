@@ -891,6 +891,17 @@ function Toggle.new(parent, config)
 
     ConfigSystem.Register(keyName, function() return state end, function(v) setState(v) end)
 
+    local rowBtn = Utility.Create("TextButton", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "",
+        AutoButtonColor = false,
+        Parent = frame
+    })
+    rowBtn.Activated:Connect(function()
+        setState(not state)
+    end)
+
     switch.Activated:Connect(function()
         setState(not state)
     end)
@@ -994,6 +1005,7 @@ function Slider.new(parent, config)
             ConfigSystem.QueueSave()
         end
     end
+    frame.Destroying:Connect(stopDrag)
 
     local function updateVal(x)
         local rel = math.clamp(x - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
@@ -1047,6 +1059,29 @@ end
 -- 4. DROPDOWN (SINGLE-SELECT)
 local ActiveDropdownCloser = nil
 local ActiveDropdownBounds = nil
+local ActiveOverlayContainer = nil
+
+local function calculatePopupLayout(headerFrame, optContainer, clampedH)
+    local s = getGuiScale(headerFrame)
+    local headerPos = headerFrame.AbsolutePosition
+    local headerSize = headerFrame.AbsoluteSize
+    local vp = Utility.GetViewportSize()
+
+    local localX = headerPos.X / s
+    local localY = headerPos.Y / s
+    local localW = headerSize.X / s
+
+    local spaceBelow = vp.Y - (headerPos.Y + headerSize.Y + 4)
+    local spaceAbove = headerPos.Y - 4
+    local openUpward = (spaceBelow < (clampedH * s)) and (spaceAbove > spaceBelow)
+
+    local targetW = math.max(localW, 120)
+    local maxTargetX = math.max(8, (vp.X / s) - targetW - 8)
+    local targetX = math.clamp(localX, 8, maxTargetX)
+    local targetY = openUpward and ((headerPos.Y - (clampedH * s) - 4) / s) or ((headerPos.Y + headerSize.Y + 4) / s)
+
+    return targetX, targetY, targetW, openUpward
+end
 
 UserInputService.InputBegan:Connect(function(inp)
     if (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) and ActiveDropdownCloser then
@@ -1079,7 +1114,7 @@ function Dropdown.new(parent, config)
         Size = UDim2.new(1, 0, 0, 38),
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundColor3 = Theme.SurfaceSecondary,
-        ClipsDescendants = true,
+        ClipsDescendants = false,
         Parent = parent
     })
     Utility.AddCorner(frame, 6)
@@ -1087,7 +1122,7 @@ function Dropdown.new(parent, config)
     Utility.AddPadding(frame, 8, 8, 12, 12)
 
     local header = Utility.Create("TextButton", {
-        Size = UDim2.new(1, 0, 0, 24),
+        Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Text = "",
         AutoButtonColor = false,
@@ -1162,6 +1197,7 @@ function Dropdown.new(parent, config)
         if not isOpen then return end
         isOpen = false
         optContainer.Visible = false
+        optContainer.Parent = frame
         frame.ZIndex = 1
         optContainer.ZIndex = 2
         valueLabel.Text = selected .. "  ▼"
@@ -1182,6 +1218,7 @@ function Dropdown.new(parent, config)
         local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
         optContainer.Size = UDim2.new(1, 0, 0, clampedH)
         optContainer.CanvasSize = UDim2.new(0, 0, 0, totalH)
+        return clampedH
     end
 
     local function openDropdown()
@@ -1191,13 +1228,22 @@ function Dropdown.new(parent, config)
         end
         ActiveDropdownCloser = closeDropdown
         isOpen = true
-        updateContainerHeight()
+        local clampedH = updateContainerHeight()
 
-        optContainer.Position = UDim2.new(0, 0, 0, 30)
+        if ActiveOverlayContainer and ActiveOverlayContainer.Parent then
+            local targetX, targetY, targetW = calculatePopupLayout(header, optContainer, clampedH)
+            optContainer.Parent = ActiveOverlayContainer
+            optContainer.Size = UDim2.new(0, math.round(targetW), 0, clampedH)
+            optContainer.Position = UDim2.new(0, math.round(targetX), 0, math.round(targetY))
+            optContainer.ZIndex = 50000
+        else
+            optContainer.Parent = frame
+            optContainer.Position = UDim2.new(0, 0, 0, 30)
+            optContainer.Size = UDim2.new(1, 0, 0, clampedH)
+            optContainer.ZIndex = 26
+        end
 
-        frame.ZIndex = 25
-        optContainer.ZIndex = 26
-        ActiveDropdownBounds = { Frame = frame, Container = optContainer }
+        ActiveDropdownBounds = { Frame = header, Container = optContainer }
         optContainer.Visible = true
         valueLabel.Text = selected .. "  ▲"
         stroke.Color = Theme.BorderBright
@@ -1208,7 +1254,12 @@ function Dropdown.new(parent, config)
         for _, c in ipairs(optContainer:GetChildren()) do
             if c:IsA("TextButton") then c:Destroy() end
         end
-        updateContainerHeight()
+        local clampedH = updateContainerHeight()
+        if isOpen and ActiveOverlayContainer and optContainer.Parent == ActiveOverlayContainer then
+            local targetX, targetY, targetW = calculatePopupLayout(header, optContainer, clampedH)
+            optContainer.Size = UDim2.new(0, math.round(targetW), 0, clampedH)
+            optContainer.Position = UDim2.new(0, math.round(targetX), 0, math.round(targetY))
+        end
         for _, opt in ipairs(options) do
             local isCurrent = (opt == selected)
             local itemBtn = Utility.Create("TextButton", {
@@ -1308,7 +1359,7 @@ function MultiDropdown.new(parent, config)
         Size = UDim2.new(1, 0, 0, 38),
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundColor3 = Theme.SurfaceSecondary,
-        ClipsDescendants = true,
+        ClipsDescendants = false,
         Parent = parent
     })
     Utility.AddCorner(frame, 6)
@@ -1316,7 +1367,7 @@ function MultiDropdown.new(parent, config)
     Utility.AddPadding(frame, 8, 8, 12, 12)
 
     local header = Utility.Create("TextButton", {
-        Size = UDim2.new(1, 0, 0, 24),
+        Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Text = "",
         AutoButtonColor = false,
@@ -1397,6 +1448,7 @@ function MultiDropdown.new(parent, config)
         if not isOpen then return end
         isOpen = false
         optContainer.Visible = false
+        optContainer.Parent = frame
         frame.ZIndex = 1
         optContainer.ZIndex = 2
         valueLabel.Text = getSummary() .. "  ▼"
@@ -1417,6 +1469,7 @@ function MultiDropdown.new(parent, config)
         local clampedH = math.min(totalH, maxVisible * itemHeight + (maxVisible - 1) * padding + 8)
         optContainer.Size = UDim2.new(1, 0, 0, clampedH)
         optContainer.CanvasSize = UDim2.new(0, 0, 0, totalH)
+        return clampedH
     end
 
     local function openDropdown()
@@ -1426,13 +1479,22 @@ function MultiDropdown.new(parent, config)
         end
         ActiveDropdownCloser = closeDropdown
         isOpen = true
-        updateContainerHeight()
+        local clampedH = updateContainerHeight()
 
-        optContainer.Position = UDim2.new(0, 0, 0, 30)
+        if ActiveOverlayContainer and ActiveOverlayContainer.Parent then
+            local targetX, targetY, targetW = calculatePopupLayout(header, optContainer, clampedH)
+            optContainer.Parent = ActiveOverlayContainer
+            optContainer.Size = UDim2.new(0, math.round(targetW), 0, clampedH)
+            optContainer.Position = UDim2.new(0, math.round(targetX), 0, math.round(targetY))
+            optContainer.ZIndex = 50000
+        else
+            optContainer.Parent = frame
+            optContainer.Position = UDim2.new(0, 0, 0, 30)
+            optContainer.Size = UDim2.new(1, 0, 0, clampedH)
+            optContainer.ZIndex = 26
+        end
 
-        frame.ZIndex = 25
-        optContainer.ZIndex = 26
-        ActiveDropdownBounds = { Frame = frame, Container = optContainer }
+        ActiveDropdownBounds = { Frame = header, Container = optContainer }
         optContainer.Visible = true
         valueLabel.Text = getSummary() .. "  ▲"
         stroke.Color = Theme.BorderBright
@@ -1451,7 +1513,12 @@ function MultiDropdown.new(parent, config)
         for _, c in ipairs(optContainer:GetChildren()) do
             if c:IsA("TextButton") then c:Destroy() end
         end
-        updateContainerHeight()
+        local clampedH = updateContainerHeight()
+        if isOpen and ActiveOverlayContainer and optContainer.Parent == ActiveOverlayContainer then
+            local targetX, targetY, targetW = calculatePopupLayout(header, optContainer, clampedH)
+            optContainer.Size = UDim2.new(0, math.round(targetW), 0, clampedH)
+            optContainer.Position = UDim2.new(0, math.round(targetX), 0, math.round(targetY))
+        end
         for _, opt in ipairs(options) do
             local isSel = (selected[opt] == true)
             local itemBtn = Utility.Create("TextButton", {
@@ -1931,7 +1998,7 @@ function Tab.new(parent, name)
 
     local function updateAdaptiveColumns()
         local availW = self.ColumnContainer.AbsoluteSize.X
-        if availW > 0 and availW < 480 then
+        if availW > 0 and availW < 620 then
             self.LeftColumn.Size = UDim2.new(1, 0, 0, 0)
             self.LeftColumn.Position = UDim2.fromOffset(0, 0)
             self.RightColumn.Size = UDim2.new(1, 0, 0, 0)
@@ -2048,6 +2115,28 @@ function NovaUI:CreateWindow(config)
 
     local sgScale = Utility.Create("UIScale", { Scale = activePreset.Scale, Parent = sg })
 
+    local overlayFrame = Utility.Create("Frame", {
+        Name = "PopupOverlayFrame",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        ZIndex = 50000,
+        Parent = sg
+    })
+    ActiveOverlayContainer = overlayFrame
+
+    local function getAdaptiveWindowSize(presetSize)
+        local vp = Utility.GetViewportSize()
+        local scale = (sgScale and sgScale.Scale) or 1
+        local maxW = math.max(320, math.floor((vp.X - 16) / scale))
+        local maxH = math.max(240, math.floor((vp.Y - 16) / scale))
+        local targetW = math.clamp(presetSize.X.Offset, 320, maxW)
+        local targetH = math.clamp(presetSize.Y.Offset, 240, maxH)
+        return UDim2.fromOffset(targetW, targetH)
+    end
+
+    local initSize = getAdaptiveWindowSize(config.Size or activePreset.Size)
+    local logoAsset = config.Logo or "rbxassetid://0"
+
     local mainFrame = Utility.Create("Frame", {
         Name = "MainFrame",
         Size = initSize,
@@ -2063,6 +2152,9 @@ function NovaUI:CreateWindow(config)
     local function destroyWindow()
         if isDestroyed then return end
         isDestroyed = true
+        if ActiveOverlayContainer == overlayFrame then
+            ActiveOverlayContainer = nil
+        end
         if getgenv and getgenv()._LIYHUB_CLEANUP then
             getgenv()._LIYHUB_CLEANUP = nil
         end
@@ -2193,11 +2285,16 @@ function NovaUI:CreateWindow(config)
         mainFrame.Position = UDim2.new(0, math.round(clampedScreenX / scale), 0, math.round(clampedScreenY / scale))
     end
 
+    local updateNotifAreaLayout = nil
+
     local function onViewportChanged()
         if pinWidget and pinWidget.Parent then
             pinWidget.Position = clampPinPosition(pinWidget.Position)
         end
         clampWindowToBounds()
+        if updateNotifAreaLayout then
+            updateNotifAreaLayout()
+        end
     end
     local cam = workspace.CurrentCamera
     if cam then
@@ -2495,10 +2592,89 @@ function NovaUI:CreateWindow(config)
         destroyWindow()
     end)
 
+    -- Window Resize Handle (36x36px Touch Hit Area with bottom-right visual grip)
+    local resizeGripHit = Utility.Create("TextButton", {
+        Name = "ResizeGripHit",
+        Size = UDim2.new(0, 36, 0, 36),
+        Position = UDim2.new(1, -36, 1, -36),
+        BackgroundTransparency = 1,
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 60,
+        Parent = mainFrame
+    })
+
+    local resizeVisual = Utility.Create("TextLabel", {
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(1, -16, 1, -16),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Text = "◢",
+        TextColor3 = Theme.BorderBright,
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        TextYAlignment = Enum.TextYAlignment.Bottom,
+        Active = false,
+        Parent = resizeGripHit
+    })
+
+    local isResizing = false
+    local resizeStart = nil
+    local resizeStartSize = nil
+    local resizeMoveConn = nil
+    local resizeEndConn = nil
+
+    local function stopResize()
+        if resizeMoveConn then resizeMoveConn:Disconnect(); resizeMoveConn = nil end
+        if resizeEndConn then resizeEndConn:Disconnect(); resizeEndConn = nil end
+        isResizing = false
+    end
+
+    resizeGripHit.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isResizing = true
+            resizeStart = input.Position
+            resizeStartSize = mainFrame.Size
+            local scale = (sgScale and sgScale.Scale) or 1
+            local vp = Utility.GetViewportSize()
+
+            resizeMoveConn = UserInputService.InputChanged:Connect(function(inp)
+                if isResizing and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                    local delta = inp.Position - resizeStart
+                    local deltaLocalX = delta.X / scale
+                    local deltaLocalY = delta.Y / scale
+                    local maxLocalW = math.max(320, math.floor((vp.X - 16) / scale))
+                    local maxLocalH = math.max(240, math.floor((vp.Y - 16) / scale))
+                    local newW = math.clamp(resizeStartSize.X.Offset + deltaLocalX, 320, maxLocalW)
+                    local newH = math.clamp(resizeStartSize.Y.Offset + deltaLocalY, 240, maxLocalH)
+                    mainFrame.Size = UDim2.fromOffset(math.round(newW), math.round(newH))
+                end
+            end)
+
+            resizeEndConn = UserInputService.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                    stopResize()
+                end
+            end)
+        end
+    end)
+
+    table.insert(windowConnections, { Disconnect = stopResize })
+
     -- Notification Stack
     local notifArea = Utility.Create("Frame", { Size = UDim2.new(0, 280, 1, -50), Position = UDim2.new(1, -290, 0, 45), BackgroundTransparency = 1, Parent = sg })
     Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Bottom, Parent = notifArea })
     Notification.Container = notifArea
+
+    updateNotifAreaLayout = function()
+        if not notifArea or not notifArea.Parent then return end
+        local vp = Utility.GetViewportSize()
+        local scale = (sgScale and sgScale.Scale) or 1
+        local notifW = math.min(280, math.max(200, math.floor((vp.X - 32) / scale)))
+        notifArea.Size = UDim2.new(0, notifW, 1, -50)
+        notifArea.Position = UDim2.new(1, -notifW - 10, 0, 45)
+    end
+    updateNotifAreaLayout()
 
     -- Main Content Layout (Sidebar rounded at bottom-left)
     local bodyFrame = Utility.Create("Frame", { Name = "BodyFrame", Size = UDim2.new(1, 0, 1, -38), Position = UDim2.new(0, 0, 0, 38), BackgroundTransparency = 1, Parent = mainFrame })
