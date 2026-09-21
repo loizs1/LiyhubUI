@@ -133,13 +133,71 @@ function Window.new(config: Types.WindowConfig)
     end
 
     if config.Resizable ~= false then
-        local resizeHandle = Utility.Create("Frame", {
-            Size = UDim2.new(0, 14, 0, 14),
-            Position = UDim2.new(1, -14, 1, -14),
+        local isMobile = Utility.IsMobile and Utility.IsMobile()
+        local gripHitSize = isMobile and 44 or 36
+        local resizeGripHit = Utility.Create("TextButton", {
+            Name = "ResizeGripHit",
+            Size = UDim2.new(0, gripHitSize, 0, gripHitSize),
+            Position = UDim2.new(1, -gripHitSize, 1, -gripHitSize),
             BackgroundTransparency = 1,
+            Text = "",
+            AutoButtonColor = false,
+            ZIndex = 60,
             Parent = self.MainFrame,
         })
-        Input.MakeResizable(self.MainFrame, resizeHandle, Vector2.new(550, 360))
+
+        local resizeGripVisual = Utility.Create("Frame", {
+            Name = "ResizeGripVisual",
+            Size = UDim2.new(0, 14, 0, 14),
+            Position = UDim2.new(1, -16, 1, -16),
+            BackgroundTransparency = 1,
+            Active = false,
+            Parent = resizeGripHit,
+        })
+
+        -- Three clean diagonal/stepped grip lines contouring rounded bottom-right corner
+        local gripLine1 = Utility.Create("Frame", {
+            Size = UDim2.new(0, 3, 0, 3),
+            Position = UDim2.new(1, -4, 1, -4),
+            BackgroundColor3 = theme.BorderBright or Color3.fromRGB(60, 60, 78),
+            BorderSizePixel = 0,
+            Active = false,
+            Parent = resizeGripVisual,
+        })
+        Utility.AddCorner(gripLine1, 1)
+
+        local gripLine2 = Utility.Create("Frame", {
+            Size = UDim2.new(0, 7, 0, 2),
+            Position = UDim2.new(1, -8, 1, -8),
+            BackgroundColor3 = theme.Border or Color3.fromRGB(42, 42, 54),
+            BorderSizePixel = 0,
+            Active = false,
+            Parent = resizeGripVisual,
+        })
+        Utility.AddCorner(gripLine2, 1)
+
+        local gripLine3 = Utility.Create("Frame", {
+            Size = UDim2.new(0, 11, 0, 2),
+            Position = UDim2.new(1, -12, 1, -12),
+            BackgroundColor3 = theme.Border or Color3.fromRGB(42, 42, 54),
+            BorderSizePixel = 0,
+            Active = false,
+            Parent = resizeGripVisual,
+        })
+        Utility.AddCorner(gripLine3, 1)
+
+        resizeGripHit.MouseEnter:Connect(function()
+            gripLine1.BackgroundColor3 = theme.Accent or Color3.fromRGB(0, 162, 255)
+            gripLine2.BackgroundColor3 = theme.BorderBright or Color3.fromRGB(60, 60, 78)
+            gripLine3.BackgroundColor3 = theme.BorderBright or Color3.fromRGB(60, 60, 78)
+        end)
+        resizeGripHit.MouseLeave:Connect(function()
+            gripLine1.BackgroundColor3 = theme.BorderBright or Color3.fromRGB(60, 60, 78)
+            gripLine2.BackgroundColor3 = theme.Border or Color3.fromRGB(42, 42, 54)
+            gripLine3.BackgroundColor3 = theme.Border or Color3.fromRGB(42, 42, 54)
+        end)
+
+        Input.MakeResizable(self.MainFrame, resizeGripHit, Vector2.new(520, 360))
     end
 
     -- Sidebar
