@@ -65,14 +65,14 @@ local targetParent = getSafeGuiContainer()
 -- THEME: PURE BLACK MODERN (Obsidian / Solid White Text / Cyan Accent)
 -- ============================================================================
 local Theme = {
-    Background       = Color3.fromRGB(12, 12, 14),      -- Deep obsidian
-    Surface          = Color3.fromRGB(18, 18, 22),      -- Card background
-    SurfaceSecondary = Color3.fromRGB(24, 24, 30),      -- Component container
-    SurfaceElevated  = Color3.fromRGB(32, 32, 40),      -- Hovered state
-    Border           = Color3.fromRGB(42, 42, 54),      -- Subtle border
-    BorderBright     = Color3.fromRGB(60, 60, 78),      -- Highlighted border
-    Text             = Color3.fromRGB(255, 255, 255),  -- Solid crisp white
-    TextSecondary    = Color3.fromRGB(180, 180, 195),  -- Subdued label white
+    Background       = Color3.fromRGB(10, 10, 12),      -- Pure deep obsidian window canvas
+    Surface          = Color3.fromRGB(14, 14, 17),      -- Topbar, Sidebar, Section container
+    SurfaceSecondary = Color3.fromRGB(18, 18, 22),      -- Card widgets, Profile box, controls
+    SurfaceElevated  = Color3.fromRGB(25, 25, 30),      -- Hovered state
+    Border           = Color3.fromRGB(28, 28, 33),      -- Crisp unified 1px border
+    BorderBright     = Color3.fromRGB(42, 42, 50),      -- Focused / highlighted border
+    Text             = Color3.fromRGB(255, 255, 255),  -- Crisp solid white
+    TextSecondary    = Color3.fromRGB(150, 150, 165),  -- Neutral subdued text
     Accent           = Color3.fromRGB(0, 162, 255),    -- Vivid Cyan
     AccentDim        = Color3.fromRGB(0, 110, 185),    -- Dim Cyan
 }
@@ -81,17 +81,18 @@ local Theme = {
 -- UTILITY HELPERS & MODERN TYPOGRAPHY ENGINE (MONTSERRAT / JETBRAINSMONO)
 -- ============================================================================
 local Fonts = {
-    Heading = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Bold),
-    Body    = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Medium),
+    Heading = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold),
+    Body    = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium),
     Mono    = Font.new("rbxasset://fonts/families/JetBrainsMono.json", Enum.FontWeight.SemiBold),
 }
 
 local Utility = {}
 function Utility.IsMobile()
-    if not UserInputService.TouchEnabled then
-        return false
+    if UserInputService.TouchEnabled and (not UserInputService.MouseEnabled or not UserInputService.KeyboardEnabled) then
+        return true
     end
-    if not UserInputService.MouseEnabled or not UserInputService.KeyboardEnabled then
+    local cam = workspace.CurrentCamera
+    if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.X < 760 then
         return true
     end
     return false
@@ -123,6 +124,75 @@ function Utility.AddStroke(inst, color, thickness, transparency)
 end
 function Utility.AddPadding(inst, top, bot, left, right)
     return Utility.Create("UIPadding", { PaddingTop = UDim.new(0, top or 8), PaddingBottom = UDim.new(0, bot or 8), PaddingLeft = UDim.new(0, left or 8), PaddingRight = UDim.new(0, right or 8), Parent = inst })
+end
+function Utility.ApplyCardStyle(inst, radius)
+    Utility.AddCorner(inst, radius or 7)
+    inst.BackgroundColor3 = Theme.SurfaceSecondary
+    local stroke = Utility.AddStroke(inst, Theme.Border, 1, 0)
+    local dummyGrad = { Color = nil }
+    return stroke, dummyGrad, dummyGrad
+end
+
+function Utility.CreateTextGroup(parent, titleText, descText, rightReserveWidth)
+    local hasDesc = (descText ~= nil and tostring(descText) ~= "")
+    local textGroup = Utility.Create("Frame", {
+        Name = "TextGroup",
+        Size = UDim2.new(1, -(rightReserveWidth or 52), 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        Parent = parent
+    })
+    Utility.Create("UIListLayout", {
+        FillDirection = Enum.FillDirection.Vertical,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 2),
+        Parent = textGroup
+    })
+
+    local titleLbl = Utility.Create("TextLabel", {
+        Name = "Title",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Text = titleText or "",
+        TextColor3 = Color3.fromRGB(245, 248, 255),
+        TextSize = 11.5,
+        TextWrapped = true,
+        TextTruncate = Enum.TextTruncate.None,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        Parent = textGroup
+    })
+    Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 8.5, Parent = titleLbl })
+
+    local descLbl = nil
+    if hasDesc then
+        descLbl = Utility.Create("TextLabel", {
+            Name = "Desc",
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            Font = Enum.Font.GothamMedium,
+            Text = tostring(descText),
+            TextColor3 = Color3.fromRGB(138, 144, 164),
+            TextSize = 10,
+            LineHeight = 1.18,
+            TextWrapped = true,
+            TextTruncate = Enum.TextTruncate.None,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            Parent = textGroup
+        })
+        Utility.Create("UITextSizeConstraint", { MaxTextSize = 10.5, MinTextSize = 7.5, Parent = descLbl })
+    end
+
+    return {
+        Frame = textGroup,
+        Title = titleLbl,
+        Desc = descLbl,
+        HasDesc = hasDesc
+    }
 end
 local CachedLogoAsset = nil
 local LogoChecked = false
@@ -815,32 +885,54 @@ local Button = {}
 function Button.new(parent, config)
     local btn = Utility.Create("TextButton", {
         Name = "Component_Button",
-        Size = UDim2.new(1, 0, 0, 36),
-        BackgroundColor3 = Theme.SurfaceSecondary,
-        Font = Enum.Font.GothamMedium,
-        Text = config.Name or "Button",
-        TextColor3 = Theme.Text,
-        TextSize = 11.5,
-        TextTruncate = Enum.TextTruncate.AtEnd,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         AutoButtonColor = false,
+        Text = "",
         Parent = parent
     })
-    Utility.AddCorner(btn, 6)
-    local stroke = Utility.AddStroke(btn, Theme.Border, 1)
+    local stroke, strokeGrad, bgGrad = Utility.ApplyCardStyle(btn, 8)
+    Utility.AddPadding(btn, 8, 8, 12, 12)
+
+    local txtGroup = Utility.CreateTextGroup(btn, config.Name or "Button", config.Desc or config.Description, 36)
+
+    local actionBadge = Utility.Create("Frame", {
+        Size = UDim2.new(0, 22, 0, 22),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(12, 12, 15),
+        BorderSizePixel = 0,
+        Parent = btn
+    })
+    Utility.AddCorner(actionBadge, 5)
+    Utility.AddStroke(actionBadge, Theme.Border, 1, 0.5)
+
+    local chevron = Utility.Create("TextLabel", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Text = ">",
+        TextColor3 = Color3.fromRGB(140, 150, 175),
+        TextSize = 13,
+        Parent = actionBadge
+    })
 
     btn.MouseEnter:Connect(function()
-        AnimationEngine.Tween(btn, TWEEN_QUICK, { BackgroundColor3 = Theme.SurfaceElevated })
+        btn.BackgroundColor3 = Theme.SurfaceElevated
         stroke.Color = Theme.BorderBright
+        chevron.TextColor3 = Theme.Text
     end)
     btn.MouseLeave:Connect(function()
-        AnimationEngine.Tween(btn, TWEEN_QUICK, { BackgroundColor3 = Theme.SurfaceSecondary, Size = UDim2.new(1, 0, 0, 36) })
+        btn.BackgroundColor3 = Theme.SurfaceSecondary
         stroke.Color = Theme.Border
+        chevron.TextColor3 = Theme.TextSecondary
     end)
     btn.MouseButton1Down:Connect(function()
-        AnimationEngine.Tween(btn, TWEEN_BOUNCE, { Size = UDim2.new(1, -2, 0, 34) })
+        btn.BackgroundColor3 = Theme.Surface
     end)
     btn.MouseButton1Up:Connect(function()
-        AnimationEngine.Tween(btn, TWEEN_BOUNCE, { Size = UDim2.new(1, 0, 0, 36) })
+        btn.BackgroundColor3 = Theme.SurfaceElevated
     end)
     btn.Activated:Connect(function()
         if config.Callback then task.spawn(config.Callback) end
@@ -859,50 +951,63 @@ function Toggle.new(parent, config)
 
     local frame = Utility.Create("Frame", {
         Name = "Component_Toggle",
-        Size = UDim2.new(1, 0, 0, 42),
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundColor3 = Theme.SurfaceSecondary,
         Parent = parent
     })
-    Utility.AddCorner(frame, 6)
-    Utility.AddStroke(frame, Theme.Border, 1)
-    Utility.AddPadding(frame, 0, 0, 12, 12)
+    local stroke = Utility.ApplyCardStyle(frame, 7)
+    Utility.AddPadding(frame, 8, 8, 12, 12)
 
-    local toggleLbl = Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -48, 1, 0),
-        BackgroundTransparency = 1,
-        Font = Enum.Font.GothamMedium,
-        Text = keyName,
-        TextColor3 = Theme.Text,
-        TextSize = 11,
-        TextScaled = true,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = frame
-    })
-    Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = toggleLbl })
+    local txtGroup = Utility.CreateTextGroup(frame, keyName, config.Desc or config.Description, 44)
 
+    -- Switch track (Exact Reference style: OFF = dark slate/grey knob, ON = solid white/black knob)
     local switch = Utility.Create("Frame", {
-        Size = UDim2.new(0, 38, 0, 20),
-        Position = UDim2.new(1, -38, 0.5, -10),
-        BackgroundColor3 = state and Theme.Accent or Theme.Surface,
+        Size = UDim2.new(0, 42, 0, 22),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        BackgroundColor3 = state and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(32, 32, 38),
         BorderSizePixel = 0,
         Parent = frame
     })
-    Utility.AddCorner(switch, 10)
+    Utility.AddCorner(switch, 11)
+    local switchStroke = Utility.AddStroke(switch, state and Color3.fromRGB(230, 230, 235) or Color3.fromRGB(45, 45, 54), 1, 0.2)
 
     local knob = Utility.Create("Frame", {
-        Size = UDim2.new(0, 14, 0, 14),
-        Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
-        BackgroundColor3 = Theme.Text,
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8),
+        BackgroundColor3 = state and Color3.fromRGB(14, 14, 17) or Color3.fromRGB(120, 120, 135),
+        BorderSizePixel = 0,
         Parent = switch
     })
-    Utility.AddCorner(knob, 7)
+    Utility.AddCorner(knob, 8)
+
+    local function applyVisual(s)
+        if s then
+            frame.BackgroundColor3 = Theme.SurfaceSecondary
+            stroke.Color = Theme.BorderBright
+            txtGroup.Title.TextColor3 = Theme.Text
+            switch.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            switchStroke.Color = Color3.fromRGB(230, 230, 235)
+            knob.BackgroundColor3 = Color3.fromRGB(14, 14, 17)
+        else
+            frame.BackgroundColor3 = Theme.SurfaceSecondary
+            stroke.Color = Theme.Border
+            txtGroup.Title.TextColor3 = Color3.fromRGB(215, 215, 225)
+            switch.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+            switchStroke.Color = Color3.fromRGB(45, 45, 54)
+            knob.BackgroundColor3 = Color3.fromRGB(120, 120, 135)
+        end
+    end
+
+
+    if state then applyVisual(true) end
 
     local function setState(newState)
         state = newState
         ConfigData[keyName] = state
-        AnimationEngine.Tween(switch, TWEEN_QUICK, { BackgroundColor3 = state and Theme.Accent or Theme.Surface })
-        AnimationEngine.Tween(knob, TWEEN_QUICK, { Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7) })
+        applyVisual(state)
+        AnimationEngine.Tween(knob, TWEEN_QUICK, { Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8) })
         ConfigSystem.QueueSave()
         if config.Callback then task.spawn(config.Callback, state) end
     end
@@ -921,10 +1026,12 @@ function Toggle.new(parent, config)
     end)
 
     return {
+        Frame = frame,
         SetState = setState,
         GetState = function() return state end
     }
 end
+
 
 -- 3. SLIDER
 local Slider = {}
@@ -937,74 +1044,92 @@ function Slider.new(parent, config)
 
     local frame = Utility.Create("Frame", {
         Name = "Component_Slider",
-        Size = UDim2.new(1, 0, 0, 52),
-        BackgroundColor3 = Theme.SurfaceSecondary,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         Parent = parent
     })
-    Utility.AddCorner(frame, 6)
-    Utility.AddStroke(frame, Theme.Border, 1)
-    Utility.AddPadding(frame, 8, 8, 12, 12)
+    local stroke, strokeGrad, bgGrad = Utility.ApplyCardStyle(frame, 8)
+    Utility.AddPadding(frame, 10, 10, 12, 12)
 
-    local sliderLbl = Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -46, 0, 18),
-        BackgroundTransparency = 1,
-        Font = Enum.Font.GothamMedium,
-        Text = keyName,
-        TextColor3 = Theme.Text,
-        TextSize = 11,
-        TextScaled = true,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        TextXAlignment = Enum.TextXAlignment.Left,
+    local contentLayout = Utility.Create("UIListLayout", {
+        FillDirection = Enum.FillDirection.Vertical,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 8),
         Parent = frame
     })
-    Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = sliderLbl })
+
+    local topRow = Utility.Create("Frame", {
+        Name = "TopRow",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        LayoutOrder = 1,
+        Parent = frame
+    })
+
+    local txtGroup = Utility.CreateTextGroup(topRow, keyName, config.Desc or config.Description, 46)
 
     local valBadge = Utility.Create("TextLabel", {
-        Size = UDim2.new(0, 42, 0, 18),
-        Position = UDim2.new(1, -42, 0, 0),
-        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 42, 0, 22),
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, 0, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(12, 12, 15),
         Font = Enum.Font.GothamBold,
         Text = tostring(val),
-        TextColor3 = Theme.Text,
-        TextSize = 11,
-        TextXAlignment = Enum.TextXAlignment.Right,
-        Parent = frame
+        TextColor3 = Theme.Accent,
+        TextSize = 10.5,
+        Parent = topRow
     })
+    Utility.AddCorner(valBadge, 4)
+    Utility.AddStroke(valBadge, Theme.Border, 1, 0.3)
 
     local trackHitArea = Utility.Create("TextButton", {
-        Size = UDim2.new(1, 0, 0, 24),
-        Position = UDim2.new(0, 0, 1, -18),
+        Size = UDim2.new(1, 0, 0, 28),
         BackgroundTransparency = 1,
         Text = "",
         AutoButtonColor = false,
+        LayoutOrder = 2,
         Parent = frame
     })
 
     local track = Utility.Create("Frame", {
         Size = UDim2.new(1, 0, 0, 6),
         Position = UDim2.new(0, 0, 0.5, -3),
-        BackgroundColor3 = Theme.Surface,
+        BackgroundColor3 = Color3.fromRGB(12, 12, 15),
         BorderSizePixel = 0,
         Active = false,
         Parent = trackHitArea
     })
     Utility.AddCorner(track, 3)
+    Utility.AddStroke(track, Theme.Border, 1)
 
     local initialP = math.clamp((val - min) / (max - min), 0, 1)
     local fill = Utility.Create("Frame", {
         Size = UDim2.new(initialP, 0, 1, 0),
-        BackgroundColor3 = Theme.Accent,
+        BackgroundColor3 = Color3.fromRGB(0, 185, 255),
+        BorderSizePixel = 0,
         Parent = track
     })
     Utility.AddCorner(fill, 3)
-
-    local knob = Utility.Create("Frame", {
-        Size = UDim2.new(0, 12, 0, 12),
-        Position = UDim2.new(1, -6, 0.5, -6),
-        BackgroundColor3 = Theme.Text,
+    Utility.Create("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 220, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 140, 240)),
+        }),
         Parent = fill
     })
-    Utility.AddCorner(knob, 6)
+
+    local knob = Utility.Create("Frame", {
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(1, -7, 0.5, -7),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0,
+        ZIndex = 5,
+        Parent = fill
+    })
+    Utility.AddCorner(knob, 8)
+    Utility.AddStroke(knob, Theme.Accent, 2)
 
     local dragging = false
     local moveConn = nil
@@ -1081,10 +1206,12 @@ function Slider.new(parent, config)
     ConfigSystem.Register(keyName, function() return val end, function(v) setValExplicit(v) end)
 
     return {
+        Frame = frame,
         GetValue = function() return val end,
         SetValue = setValExplicit
     }
 end
+
 
 -- 4. DROPDOWN (SINGLE-SELECT)
 
@@ -1093,203 +1220,107 @@ local ActiveDropdownCloser = nil
 
 
 local Dropdown = {}
-
 function Dropdown.new(parent, config)
-
     local keyName = config.Name or "Dropdown"
-
     local options = config.Options or {}
-
     local initial = (ConfigData[keyName] ~= nil and tostring(ConfigData[keyName])) or (config.Default or (options[1] or ""))
-
     local selected = initial
-
     ConfigData[keyName] = selected
-
     local isOpen = false
 
-
-
     local frame = Utility.Create("Frame", {
-
         Name = "Component_Dropdown",
-
-        Size = UDim2.new(1, 0, 0, 38),
-
+        Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-
-        BackgroundColor3 = Theme.SurfaceSecondary,
-
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         ClipsDescendants = true,
-
         Parent = parent
-
     })
-
-    Utility.AddCorner(frame, 6)
-
-    local stroke = Utility.AddStroke(frame, Theme.Border, 1)
-
+    local stroke, strokeGrad, bgGrad = Utility.ApplyCardStyle(frame, 8)
     Utility.AddPadding(frame, 8, 8, 12, 12)
 
-
+    local frameLayout = Utility.Create("UIListLayout", {
+        FillDirection = Enum.FillDirection.Vertical,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 8),
+        Parent = frame
+    })
 
     local header = Utility.Create("TextButton", {
-
-        Size = UDim2.new(1, 0, 0, 24),
-
+        Name = "Header",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
-
         Text = "",
-
         AutoButtonColor = false,
-
+        LayoutOrder = 1,
         Parent = frame
-
     })
 
-
-
-    local dropLbl = Utility.Create("TextLabel", {
-
-        Size = UDim2.new(1, -94, 1, 0),
-
-        BackgroundTransparency = 1,
-
-        Font = Enum.Font.GothamMedium,
-
-        Text = keyName,
-
-        TextColor3 = Theme.Text,
-
-        TextSize = 11,
-
-        TextScaled = true,
-
-        TextTruncate = Enum.TextTruncate.AtEnd,
-
-        TextXAlignment = Enum.TextXAlignment.Left,
-
-        Active = false,
-
-        Parent = header
-
-    })
-
-    Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = dropLbl })
-
-
+    local txtGroup = Utility.CreateTextGroup(header, keyName, config.Desc or config.Description, 100)
 
     local valPill = Utility.Create("Frame", {
-
-        Size = UDim2.new(0, 88, 1, 0),
-
-        Position = UDim2.new(1, -88, 0, 0),
-
-        BackgroundColor3 = Theme.Surface,
-
+        Size = UDim2.new(0, 92, 0, 22),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(12, 12, 15),
         Active = false,
-
         Parent = header
-
     })
-
-    Utility.AddCorner(valPill, 4)
-
-    local valPillStroke = Utility.AddStroke(valPill, Theme.Border, 1)
-
-
+    Utility.AddCorner(valPill, 5)
+    local valPillStroke = Utility.AddStroke(valPill, Theme.Border, 1, 0.3)
 
     local valueLabel = Utility.Create("TextLabel", {
-
         Size = UDim2.new(1, -6, 1, 0),
-
         Position = UDim2.new(0, 3, 0, 0),
-
         BackgroundTransparency = 1,
-
         Font = Enum.Font.GothamMedium,
-
-        Text = selected .. "  ▼",
-
-        TextColor3 = Theme.Accent,
-
+        Text = selected .. "  v",
+        TextColor3 = Color3.fromRGB(215, 220, 235),
         TextSize = 10,
-
         TextScaled = true,
-
         TextTruncate = Enum.TextTruncate.AtEnd,
-
         TextXAlignment = Enum.TextXAlignment.Center,
-
         Active = false,
-
         Parent = valPill
-
     })
-
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 11, MinTextSize = 8, Parent = valueLabel })
 
-
-
     local optContainer = Utility.Create("ScrollingFrame", {
-
         Name = "OptionsList",
-
         Size = UDim2.new(1, 0, 0, 0),
-
-        Position = UDim2.new(0, 0, 0, 30),
-
         BackgroundTransparency = 0,
-
         BackgroundColor3 = Theme.Surface,
-
         BorderSizePixel = 0,
-
         ScrollBarThickness = 4,
-
         ScrollBarImageColor3 = Theme.Accent,
-
         TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
-
         BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
-
         CanvasSize = UDim2.new(0, 0, 0, 0),
-
         AutomaticCanvasSize = Enum.AutomaticSize.None,
-
         ScrollingDirection = Enum.ScrollingDirection.Y,
-
         VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
-
         Visible = false,
-
+        LayoutOrder = 2,
         Parent = frame
-
     })
-
     Utility.AddCorner(optContainer, 5)
-
     Utility.AddStroke(optContainer, Theme.BorderBright, 1)
-
     Utility.AddPadding(optContainer, 4, 4, 4, 4)
-
     Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3), Parent = optContainer })
-
-
 
     local function closeDropdown()
         if not isOpen then return end
         isOpen = false
         optContainer.Visible = false
         optContainer.Size = UDim2.new(1, 0, 0, 0)
-        valueLabel.Text = selected .. "  ▼"
-        stroke.Color = Theme.Border
+        valueLabel.Text = selected .. "  v"
         valPillStroke.Color = Theme.Border
         if ActiveDropdownCloser == closeDropdown then
             ActiveDropdownCloser = nil
         end
     end
+
 
     local function updateContainerHeight()
         local count = #options
@@ -1313,7 +1344,7 @@ function Dropdown.new(parent, config)
         local clampedH = updateContainerHeight()
         optContainer.Size = UDim2.new(1, 0, 0, clampedH)
         optContainer.Visible = true
-        valueLabel.Text = selected .. "  ▲"
+        valueLabel.Text = selected .. "  ^"
         stroke.Color = Theme.BorderBright
         valPillStroke.Color = Theme.Accent
 
@@ -1362,7 +1393,7 @@ function Dropdown.new(parent, config)
 
                 Font = isCurrent and Enum.Font.GothamBold or Enum.Font.GothamMedium,
 
-                Text = (isCurrent and "  ●  " or "      ") .. opt,
+                Text = (isCurrent and "  *  " or "     ") .. opt,
 
                 TextColor3 = isCurrent and Color3.fromRGB(255, 255, 255) or Theme.Text,
 
@@ -1478,7 +1509,7 @@ function Dropdown.new(parent, config)
 
         ConfigSystem.QueueSave()
 
-        valueLabel.Text = selected .. (isOpen and "  ▲" or "  ▼")
+        valueLabel.Text = selected .. (isOpen and "  ^" or "  v")
 
         renderOptions()
 
@@ -1516,7 +1547,7 @@ function Dropdown.new(parent, config)
 
             ConfigSystem.QueueSave()
 
-            valueLabel.Text = selected .. (isOpen and "  ▲" or "  ▼")
+            valueLabel.Text = selected .. (isOpen and "  ^" or "  v")
 
             renderOptions()
 
@@ -1531,216 +1562,110 @@ end
 -- 5. MULTI-DROPDOWN
 
 local MultiDropdown = {}
-
 function MultiDropdown.new(parent, config)
-
     local keyName = config.Name or "MultiDropdown"
-
     local options = config.Options or {}
-
     local selected = {}
-
     if ConfigData[keyName] and typeof(ConfigData[keyName]) == "table" then
-
         for _, item in ipairs(ConfigData[keyName]) do selected[item] = true end
-
     else
-
         for _, item in ipairs(config.Default or {}) do selected[item] = true end
-
     end
-
     local isOpen = false
 
-
-
     local frame = Utility.Create("Frame", {
-
         Name = "Component_MultiDropdown",
-
-        Size = UDim2.new(1, 0, 0, 38),
-
+        Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-
-        BackgroundColor3 = Theme.SurfaceSecondary,
-
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         ClipsDescendants = true,
-
         Parent = parent
-
     })
-
-    Utility.AddCorner(frame, 6)
-
-    local stroke = Utility.AddStroke(frame, Theme.Border, 1)
-
+    local stroke, strokeGrad, bgGrad = Utility.ApplyCardStyle(frame, 8)
     Utility.AddPadding(frame, 8, 8, 12, 12)
 
-
+    local frameLayout = Utility.Create("UIListLayout", {
+        FillDirection = Enum.FillDirection.Vertical,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 8),
+        Parent = frame
+    })
 
     local header = Utility.Create("TextButton", {
-
-        Size = UDim2.new(1, 0, 0, 24),
-
+        Name = "Header",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
-
         Text = "",
-
         AutoButtonColor = false,
-
+        LayoutOrder = 1,
         Parent = frame
-
     })
 
-
-
-    local mdropLbl = Utility.Create("TextLabel", {
-
-        Size = UDim2.new(1, -94, 1, 0),
-
-        BackgroundTransparency = 1,
-
-        Font = Enum.Font.GothamMedium,
-
-        Text = keyName,
-
-        TextColor3 = Theme.Text,
-
-        TextSize = 11,
-
-        TextScaled = true,
-
-        TextTruncate = Enum.TextTruncate.AtEnd,
-
-        TextXAlignment = Enum.TextXAlignment.Left,
-
-        Active = false,
-
-        Parent = header
-
-    })
-
-    Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = mdropLbl })
-
-
+    local txtGroup = Utility.CreateTextGroup(header, keyName, config.Desc or config.Description, 100)
 
     local valPill = Utility.Create("Frame", {
-
-        Size = UDim2.new(0, 88, 1, 0),
-
-        Position = UDim2.new(1, -88, 0, 0),
-
-        BackgroundColor3 = Theme.Surface,
-
+        Size = UDim2.new(0, 92, 0, 22),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(12, 12, 15),
         Active = false,
-
         Parent = header
-
     })
-
-    Utility.AddCorner(valPill, 4)
-
-    local valPillStroke = Utility.AddStroke(valPill, Theme.Border, 1)
-
-
+    Utility.AddCorner(valPill, 5)
+    local valPillStroke = Utility.AddStroke(valPill, Theme.Border, 1, 0.3)
 
     local function getSummary()
-
         local count = 0
-
         for _ in pairs(selected) do count = count + 1 end
-
         return tostring(count) .. " selected"
-
     end
 
-
-
     local valueLabel = Utility.Create("TextLabel", {
-
         Size = UDim2.new(1, -6, 1, 0),
-
         Position = UDim2.new(0, 3, 0, 0),
-
         BackgroundTransparency = 1,
-
         Font = Enum.Font.GothamMedium,
-
-        Text = getSummary() .. "  ▼",
-
-        TextColor3 = Theme.Accent,
-
+        Text = getSummary() .. "  v",
+        TextColor3 = Color3.fromRGB(215, 220, 235),
         TextSize = 10,
-
         TextScaled = true,
-
         TextTruncate = Enum.TextTruncate.AtEnd,
-
         TextXAlignment = Enum.TextXAlignment.Center,
-
         Active = false,
-
         Parent = valPill
-
     })
-
     Utility.Create("UITextSizeConstraint", { MaxTextSize = 11, MinTextSize = 8, Parent = valueLabel })
 
-
-
     local optContainer = Utility.Create("ScrollingFrame", {
-
         Name = "OptionsList",
-
         Size = UDim2.new(1, 0, 0, 0),
-
-        Position = UDim2.new(0, 0, 0, 30),
-
         BackgroundColor3 = Theme.Surface,
-
         BackgroundTransparency = 0,
-
         BorderSizePixel = 0,
-
         ScrollBarThickness = 4,
-
         ScrollBarImageColor3 = Theme.Accent,
-
         TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
-
         BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
-
         CanvasSize = UDim2.new(0, 0, 0, 0),
-
         AutomaticCanvasSize = Enum.AutomaticSize.None,
-
         ScrollingDirection = Enum.ScrollingDirection.Y,
-
         VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
-
         Visible = false,
-
+        LayoutOrder = 2,
         Parent = frame
-
     })
-
     Utility.AddCorner(optContainer, 5)
-
     Utility.AddStroke(optContainer, Theme.BorderBright, 1)
-
     Utility.AddPadding(optContainer, 4, 4, 4, 4)
-
     Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3), Parent = optContainer })
-
-
 
     local function closeDropdown()
         if not isOpen then return end
         isOpen = false
         optContainer.Visible = false
         optContainer.Size = UDim2.new(1, 0, 0, 0)
-        valueLabel.Text = getSummary() .. "  ▼"
-        stroke.Color = Theme.Border
+        valueLabel.Text = getSummary() .. "  v"
         valPillStroke.Color = Theme.Border
         if ActiveDropdownCloser == closeDropdown then
             ActiveDropdownCloser = nil
@@ -1769,7 +1694,7 @@ function MultiDropdown.new(parent, config)
         local clampedH = updateContainerHeight()
         optContainer.Size = UDim2.new(1, 0, 0, clampedH)
         optContainer.Visible = true
-        valueLabel.Text = getSummary() .. "  ▲"
+        valueLabel.Text = getSummary() .. "  ^"
         stroke.Color = Theme.BorderBright
         valPillStroke.Color = Theme.Accent
     end
@@ -1816,7 +1741,7 @@ function MultiDropdown.new(parent, config)
 
                 Font = isSel and Enum.Font.GothamBold or Enum.Font.GothamMedium,
 
-                Text = (isSel and "  ✓  " or "      ") .. opt,
+                Text = (isSel and " [x] " or " [ ] ") .. opt,
 
                 TextColor3 = isSel and Theme.Accent or Theme.Text,
 
@@ -1872,7 +1797,7 @@ function MultiDropdown.new(parent, config)
 
                 selected[opt] = not selected[opt]
 
-                valueLabel.Text = getSummary() .. (isOpen and "  ▲" or "  ▼")
+                valueLabel.Text = getSummary() .. (isOpen and "  ^" or "  v")
 
                 local list = syncState()
 
@@ -1938,7 +1863,7 @@ function MultiDropdown.new(parent, config)
 
         if typeof(arr) == "table" then for _, item in ipairs(arr) do selected[item] = true end end
 
-        valueLabel.Text = getSummary() .. (isOpen and "  ▲" or "  ▼")
+        valueLabel.Text = getSummary() .. (isOpen and "  ^" or "  v")
 
         renderOptions()
 
@@ -1990,35 +1915,27 @@ function ColorPicker.new(parent, config)
 
     local frame = Utility.Create("Frame", {
         Name = "Component_ColorPicker",
-        Size = UDim2.new(1, 0, 0, 38),
-        BackgroundColor3 = Theme.SurfaceSecondary,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         Parent = parent
     })
-    Utility.AddCorner(frame, 6); Utility.AddStroke(frame, Theme.Border, 1); Utility.AddPadding(frame, 8, 8, 12, 12)
+    local stroke, strokeGrad, bgGrad = Utility.ApplyCardStyle(frame, 8)
+    Utility.AddPadding(frame, 8, 8, 12, 12)
 
-    local cpLbl = Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -42, 1, 0),
-        BackgroundTransparency = 1,
-        Font = Enum.Font.GothamMedium,
-        Text = keyName,
-        TextColor3 = Theme.Text,
-        TextSize = 11,
-        TextScaled = true,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = frame
-    })
-    Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = cpLbl })
+    local txtGroup = Utility.CreateTextGroup(frame, keyName, config.Desc or config.Description, 46)
 
     local preview = Utility.Create("TextButton", {
-        Size = UDim2.new(0, 34, 0, 20),
-        Position = UDim2.new(1, -34, 0.5, -10),
+        Size = UDim2.new(0, 36, 0, 20),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
         BackgroundColor3 = curColor,
         Text = "",
         AutoButtonColor = false,
         Parent = frame
     })
-    Utility.AddCorner(preview, 4); Utility.AddStroke(preview, Theme.Border, 1)
+    Utility.AddCorner(preview, 4)
+    Utility.AddStroke(preview, Theme.Border, 1)
 
     local function applyColor(c)
         curColor = c
@@ -2036,6 +1953,7 @@ function ColorPicker.new(parent, config)
     ConfigSystem.Register(keyName, function() return curColor end, function(c) applyColor(c) end)
 
     return {
+        Frame = frame,
         GetColor = function() return curColor end,
         SetColor = applyColor
     }
@@ -2054,60 +1972,63 @@ function Keybind.new(parent, config)
 
     local frame = Utility.Create("Frame", {
         Name = "Component_Keybind",
-        Size = UDim2.new(1, 0, 0, 38),
-        BackgroundColor3 = Theme.SurfaceSecondary,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         Parent = parent
     })
-    Utility.AddCorner(frame, 6); Utility.AddStroke(frame, Theme.Border, 1); Utility.AddPadding(frame, 8, 8, 12, 12)
+    local stroke, strokeGrad, bgGrad = Utility.ApplyCardStyle(frame, 8)
+    Utility.AddPadding(frame, 8, 8, 12, 12)
 
-    local kbLbl = Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -80, 1, 0),
-        BackgroundTransparency = 1,
-        Font = Enum.Font.GothamMedium,
-        Text = keyName,
-        TextColor3 = Theme.Text,
-        TextSize = 11,
-        TextScaled = true,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = frame
-    })
-    Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = kbLbl })
+    local keyText = "[" .. curKey.Name .. "]"
+    local btnW = math.clamp(#keyText * 7 + 12, 28, 56)
 
+    local txtGroup = Utility.CreateTextGroup(frame, keyName, config.Desc or config.Description, btnW + 6)
+
+    -- Keycap button
     local bindBtn = Utility.Create("TextButton", {
-        Size = UDim2.new(0, 74, 0, 22),
-        Position = UDim2.new(1, -74, 0.5, -11),
-        BackgroundColor3 = Theme.Surface,
+        Size = UDim2.new(0, btnW, 0, 20),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(12, 12, 15),
         Font = Enum.Font.GothamBold,
-        Text = "[" .. curKey.Name .. "]",
+        Text = keyText,
         TextColor3 = Theme.Accent,
         TextSize = 10,
-        TextTruncate = Enum.TextTruncate.AtEnd,
         AutoButtonColor = false,
         Parent = frame
     })
-    Utility.AddCorner(bindBtn, 4); Utility.AddStroke(bindBtn, Theme.Border, 1)
+    Utility.AddCorner(bindBtn, 4)
+    local bindStroke = Utility.AddStroke(bindBtn, Theme.Border, 1)
 
     local keyConn = nil
     local function stopListening()
         listening = false
+        bindStroke.Color = Theme.Border
         if keyConn then keyConn:Disconnect(); keyConn = nil end
     end
 
     local function applyKey(k)
         curKey = k
-        bindBtn.Text = "[" .. curKey.Name .. "]"
+        local newStr = "[" .. curKey.Name .. "]"
+        local newW = math.clamp(#newStr * 7 + 12, 28, 56)
+        bindBtn.Size = UDim2.new(0, newW, 0, 20)
+        txtGroup.Frame.Size = UDim2.new(1, -(newW + 6), 0, 0)
+        bindBtn.Text = newStr
         bindBtn.TextColor3 = Theme.Accent
+        bindStroke.Color = Theme.Border
         ConfigData[keyName] = { __type = "EnumItem", enum = "KeyCode", name = curKey.Name }
         ConfigSystem.QueueSave()
         if config.Callback then task.spawn(config.Callback, curKey) end
     end
 
+
     bindBtn.Activated:Connect(function()
         if listening then return end
         listening = true
         bindBtn.Text = "[...]"
-        bindBtn.TextColor3 = Theme.Text
+        bindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        bindStroke.Color = Theme.Accent
         if keyConn then keyConn:Disconnect() end
         keyConn = UserInputService.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -2117,6 +2038,7 @@ function Keybind.new(parent, config)
                 stopListening()
                 bindBtn.Text = "[" .. curKey.Name .. "]"
                 bindBtn.TextColor3 = Theme.Accent
+                bindStroke.Color = Theme.Border
             end
         end)
     end)
@@ -2124,6 +2046,7 @@ function Keybind.new(parent, config)
     ConfigSystem.Register(keyName, function() return curKey end, function(k) applyKey(k) end)
 
     return {
+        Frame = frame,
         GetKey = function() return curKey end,
         SetKey = applyKey
     }
@@ -2139,33 +2062,24 @@ function Textbox.new(parent, config)
 
     local frame = Utility.Create("Frame", {
         Name = "Component_Textbox",
-        Size = UDim2.new(1, 0, 0, 38),
-        BackgroundColor3 = Theme.SurfaceSecondary,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         Parent = parent
     })
-    Utility.AddCorner(frame, 6); Utility.AddStroke(frame, Theme.Border, 1); Utility.AddPadding(frame, 8, 8, 12, 12)
+    local stroke, strokeGrad, bgGrad = Utility.ApplyCardStyle(frame, 8)
+    Utility.AddPadding(frame, 8, 8, 12, 12)
 
-    local tbLbl = Utility.Create("TextLabel", {
-        Size = UDim2.new(1, -86, 1, 0),
-        BackgroundTransparency = 1,
-        Font = Enum.Font.GothamMedium,
-        Text = keyName,
-        TextColor3 = Theme.Text,
-        TextSize = 11,
-        TextScaled = true,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = frame
-    })
-    Utility.Create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 9, Parent = tbLbl })
+    local txtGroup = Utility.CreateTextGroup(frame, keyName, config.Desc or config.Description, 94)
 
     local input = Utility.Create("TextBox", {
-        Size = UDim2.new(0, 82, 0, 22),
-        Position = UDim2.new(1, -82, 0.5, -11),
-        BackgroundColor3 = Theme.Surface,
+        Size = UDim2.new(0, 88, 0, 22),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(12, 12, 15),
         Font = Enum.Font.Gotham,
         Text = curText,
-        PlaceholderText = config.Placeholder or "Type here...",
+        PlaceholderText = config.Placeholder or "Type...",
         PlaceholderColor3 = Theme.TextSecondary,
         TextColor3 = Theme.Text,
         TextSize = 10,
@@ -2174,7 +2088,9 @@ function Textbox.new(parent, config)
         ClearTextOnFocus = false,
         Parent = frame
     })
-    Utility.AddCorner(input, 4); Utility.AddStroke(input, Theme.Border, 1); Utility.AddPadding(input, 0, 0, 6, 6)
+    Utility.AddCorner(input, 4)
+    Utility.AddStroke(input, Theme.Border, 1)
+    Utility.AddPadding(input, 0, 0, 6, 6)
 
     local function applyText(t, enterPressed)
         curText = t
@@ -2191,6 +2107,7 @@ function Textbox.new(parent, config)
     ConfigSystem.Register(keyName, function() return curText end, function(t) applyText(t, false) end)
 
     return {
+        Frame = frame,
         GetText = function() return curText end,
         SetText = function(t) applyText(t, false) end
     }
@@ -2264,45 +2181,225 @@ function Paragraph.new(parent, config)
 end
 
 -- ============================================================================
+-- ROW CONTAINER (DUAL / MULTI-WIDGET 2-COLUMN LAYOUT)
+-- ============================================================================
+local Row = {}
+Row.__index = Row
+
+function Row.new(parent)
+    local self = setmetatable({}, Row)
+    self.Items = {}
+    self.Frame = Utility.Create("Frame", {
+        Name = "Component_Row",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        Parent = parent
+    })
+    self.Layout = Utility.Create("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 8),
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        Parent = self.Frame
+    })
+    return self
+end
+
+function Row:_Register(handle)
+    local children = self.Frame:GetChildren()
+    local itemFrame = nil
+    for _, child in ipairs(children) do
+        if child:IsA("GuiObject") and not table.find(self.Items, child) then
+            itemFrame = child
+            break
+        end
+    end
+    if itemFrame then
+        table.insert(self.Items, itemFrame)
+        if typeof(handle) == "table" and not handle.Frame then
+            handle.Frame = itemFrame
+        end
+        local n = #self.Items
+        local gap = 8
+        local totalGaps = gap * (n - 1)
+        local fraction = 1 / n
+        local offsetPerItem = totalGaps / n
+        for _, f in ipairs(self.Items) do
+            f.Size = UDim2.new(fraction, -math.floor(offsetPerItem), f.Size.Y.Scale, f.Size.Y.Offset)
+        end
+    end
+    return handle
+end
+
+function Row:AddButton(config)
+    local btn = Button.new(self.Frame, config)
+    return self:_Register(btn)
+end
+
+function Row:AddToggle(config)
+    local toggle = Toggle.new(self.Frame, config)
+    return self:_Register(toggle)
+end
+
+function Row:AddSlider(config)
+    local slider = Slider.new(self.Frame, config)
+    return self:_Register(slider)
+end
+
+function Row:AddDropdown(config)
+    local drop = Dropdown.new(self.Frame, config)
+    return self:_Register(drop)
+end
+
+function Row:AddMultiDropdown(config)
+    local drop = MultiDropdown.new(self.Frame, config)
+    return self:_Register(drop)
+end
+
+function Row:AddKeybind(config)
+    local kb = Keybind.new(self.Frame, config)
+    return self:_Register(kb)
+end
+
+function Row:AddColorPicker(config)
+    local cp = ColorPicker.new(self.Frame, config)
+    return self:_Register(cp)
+end
+
+function Row:AddTextbox(config)
+    local tb = Textbox.new(self.Frame, config)
+    return self:_Register(tb)
+end
+
+function Row:AddInput(config)
+    return self:AddTextbox(config)
+end
+
+function Row:AddLabel(text)
+    local lbl = Label.new(self.Frame, text)
+    return self:_Register(lbl)
+end
+
+-- ============================================================================
 -- SECTION CONTAINER
 -- ============================================================================
 local Section = {}
 Section.__index = Section
-function Section.new(parent, name)
+function Section.new(parent, config)
+    local name = (typeof(config) == "table" and (config.Name or config.Title)) or tostring(config or "Section")
+    local rawIcon = (typeof(config) == "table" and config.Icon)
+    local hasIcon = (rawIcon ~= nil and tostring(rawIcon) ~= "" and tostring(rawIcon) ~= "⛶")
+    local defaultCollapsed = (typeof(config) == "table" and config.Collapsed == true)
+
     local self = setmetatable({}, Section)
+    self.IsCollapsed = defaultCollapsed
+
     self.Frame = Utility.Create("Frame", {
         Name = "Section_" .. name,
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundColor3 = Theme.Surface,
+        BorderSizePixel = 0,
         Parent = parent
     }) :: Frame
-    Utility.AddCorner(self.Frame, 8); Utility.AddStroke(self.Frame, Theme.Border, 1); Utility.AddPadding(self.Frame, 12, 12, 12, 12)
-    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), Parent = self.Frame })
+    Utility.AddCorner(self.Frame, 8)
+    local secStroke = Utility.AddStroke(self.Frame, Theme.Border, 1, 0)
+    Utility.AddPadding(self.Frame, 12, 12, 12, 12)
+    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 10), Parent = self.Frame })
 
-    local header = Utility.Create("Frame", { Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Parent = self.Frame })
-    local dot = Utility.Create("Frame", { Size = UDim2.new(0, 6, 0, 6), Position = UDim2.new(0, 0, 0.5, -3), BackgroundColor3 = Theme.Accent, Parent = header }); Utility.AddCorner(dot, 3)
-    Utility.Create("TextLabel", { Size = UDim2.new(1, -14, 1, 0), Position = UDim2.new(0, 14, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, Text = string.upper(name), TextColor3 = Theme.Text, TextSize = 11, TextTruncate = Enum.TextTruncate.AtEnd, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+    -- Header (Interactive collapse toggle)
+    local headerBtn = Utility.Create("TextButton", {
+        Name = "Header",
+        Size = UDim2.new(1, 0, 0, 22),
+        BackgroundTransparency = 1,
+        Text = "",
+        AutoButtonColor = false,
+        LayoutOrder = 1,
+        Parent = self.Frame
+    })
+
+    local iconLbl = nil
+    if hasIcon then
+        iconLbl = Utility.Create("TextLabel", {
+            Size = UDim2.new(0, 18, 1, 0),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.GothamBold,
+            Text = tostring(rawIcon),
+            TextColor3 = Theme.TextSecondary,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = headerBtn
+        })
+    end
+
+    local titleLbl = Utility.Create("TextLabel", {
+        Size = UDim2.new(1, hasIcon and -44 or -24, 1, 0),
+        Position = UDim2.new(0, hasIcon and 20 or 0, 0, 0),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Text = name,
+        TextColor3 = Color3.fromRGB(245, 248, 255),
+        TextSize = 12.5,
+        TextTruncate = Enum.TextTruncate.None,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = headerBtn
+    })
+
+    local chevron = Utility.Create("TextLabel", {
+        Size = UDim2.new(0, 20, 1, 0),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Text = self.IsCollapsed and ">" or "v",
+        TextColor3 = Theme.TextSecondary,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Parent = headerBtn
+    })
+
+    -- Content items container
+    self.ContentFrame = Utility.Create("Frame", {
+        Name = "Content",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        Visible = not self.IsCollapsed,
+        LayoutOrder = 2,
+        Parent = self.Frame
+    })
+    Utility.Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), Parent = self.ContentFrame })
+
+    headerBtn.Activated:Connect(function()
+        self.IsCollapsed = not self.IsCollapsed
+        self.ContentFrame.Visible = not self.IsCollapsed
+        chevron.Text = self.IsCollapsed and ">" or "v"
+        chevron.TextColor3 = self.IsCollapsed and Theme.BorderBright or Color3.fromRGB(130, 138, 160)
+    end)
+
     return self
 end
-function Section:AddButton(config) return Button.new(self.Frame, config) end
-function Section:AddToggle(config) return Toggle.new(self.Frame, config) end
-function Section:AddSlider(config) return Slider.new(self.Frame, config) end
-function Section:AddDropdown(config) return Dropdown.new(self.Frame, config) end
-function Section:AddMultiDropdown(config) return MultiDropdown.new(self.Frame, config) end
-function Section:AddColorPicker(config) return ColorPicker.new(self.Frame, config) end
-function Section:AddKeybind(config) return Keybind.new(self.Frame, config) end
-function Section:AddTextbox(config) return Textbox.new(self.Frame, config) end
-function Section:AddInput(config) return Textbox.new(self.Frame, config) end -- SpeedHub / ChloeX alias
-function Section:AddLabel(text) return Label.new(self.Frame, text) end
-function Section:AddParagraph(config) return Paragraph.new(self.Frame, config) end
+function Section:AddRow() return Row.new(self.ContentFrame) end
+function Section:AddButton(config) return Button.new(self.ContentFrame, config) end
+function Section:AddToggle(config) return Toggle.new(self.ContentFrame, config) end
+function Section:AddSlider(config) return Slider.new(self.ContentFrame, config) end
+function Section:AddDropdown(config) return Dropdown.new(self.ContentFrame, config) end
+function Section:AddMultiDropdown(config) return MultiDropdown.new(self.ContentFrame, config) end
+function Section:AddColorPicker(config) return ColorPicker.new(self.ContentFrame, config) end
+function Section:AddKeybind(config) return Keybind.new(self.ContentFrame, config) end
+function Section:AddTextbox(config) return Textbox.new(self.ContentFrame, config) end
+function Section:AddInput(config) return Textbox.new(self.ContentFrame, config) end
+function Section:AddLabel(text) return Label.new(self.ContentFrame, text) end
+function Section:AddParagraph(config) return Paragraph.new(self.ContentFrame, config) end
 function Section:AddDivider()
     local div = Utility.Create("Frame", {
         Name = "Divider",
         Size = UDim2.new(1, 0, 0, 1),
         BackgroundColor3 = Theme.Border,
         BorderSizePixel = 0,
-        Parent = self.Frame
+        Parent = self.ContentFrame
     })
     return div
 end
@@ -2312,23 +2409,26 @@ function Section:AddSubSection(name)
         Size = UDim2.new(1, 0, 0, 18),
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamBold,
-        Text = "— " .. string.upper(name or "") .. " —",
+        Text = "- " .. string.upper(name or "") .. " -",
         TextColor3 = Theme.Accent,
         TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Center,
-        Parent = self.Frame
+        Parent = self.ContentFrame
     })
     return sub
 end
 
 -- ============================================================================
--- TAB CONTAINER WITH PRECISE CLAMPED SCROLLING
+-- TAB CONTAINER WITH TRUE DUAL-COLUMN WIDGET ARCHITECTURE
 -- ============================================================================
 local Tab = {}
 Tab.__index = Tab
 function Tab.new(parent, name)
     local self = setmetatable({}, Tab)
-    -- CanvasSize strictly 0,0,0,0 with AutomaticCanvasSize = Y ensures scrolling stops exactly at the bottom-most widget
+    self.Sections = {}
+    self.LeftCount = 0
+    self.RightCount = 0
+
     self.Frame = Utility.Create("ScrollingFrame", {
         Name = "Tab_" .. name,
         Size = UDim2.new(1, 0, 1, 0),
@@ -2336,31 +2436,136 @@ function Tab.new(parent, name)
         BorderSizePixel = 0,
         ScrollBarThickness = 3,
         ScrollBarImageColor3 = Theme.BorderBright,
-        ScrollBarImageTransparency = 0.3,
+        ScrollBarImageTransparency = 0.4,
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         Visible = false,
         Parent = parent
     }) :: ScrollingFrame
-    Utility.AddPadding(self.Frame, 16, 16, 16, 16)
+    Utility.AddPadding(self.Frame, 14, 14, 14, 14)
 
-    Utility.Create("UIListLayout", {
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 14),
+    -- Container for dual column layout
+    self.ColumnsContainer = Utility.Create("Frame", {
+        Name = "ColumnsContainer",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
         Parent = self.Frame
     })
 
+    self.LeftColumn = Utility.Create("Frame", {
+        Name = "LeftColumn",
+        Size = UDim2.new(0.5, -6, 0, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        LayoutOrder = 1,
+        Parent = self.ColumnsContainer
+    })
+    Utility.Create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 10),
+        Parent = self.LeftColumn
+    })
+
+    self.RightColumn = Utility.Create("Frame", {
+        Name = "RightColumn",
+        Size = UDim2.new(0.5, -6, 0, 0),
+        Position = UDim2.new(0.5, 6, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        LayoutOrder = 2,
+        Parent = self.ColumnsContainer
+    })
+    Utility.Create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 10),
+        Parent = self.RightColumn
+    })
+
+    self.ColumnsLayout = Utility.Create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        FillDirection = Enum.FillDirection.Horizontal,
+        Padding = UDim.new(0, 10),
+        Parent = self.ColumnsContainer
+    })
+
+    -- Full width container (bisa di bawah columns)
+    self.FullContainer = Utility.Create("Frame", {
+        Name = "FullContainer",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        LayoutOrder = 3,
+        Parent = self.Frame
+    })
+    Utility.Create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 10),
+        Parent = self.FullContainer
+    })
+
+    Utility.Create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 10),
+        Parent = self.Frame
+    })
+
+    -- Responsive 2-column (Desktop) to 1-column (Mobile / iOS) stacker
+    local function updateResponsiveColumns()
+        if not self.Frame or not self.Frame.Parent then return end
+        local areaW = self.Frame.AbsoluteSize.X
+        local isStacked = (areaW > 0 and areaW < 540) or Utility.IsMobile()
+        if isStacked then
+            self.ColumnsLayout.FillDirection = Enum.FillDirection.Vertical
+            self.LeftColumn.Size = UDim2.new(1, 0, 0, 0)
+            self.RightColumn.Size = UDim2.new(1, 0, 0, 0)
+        else
+            self.ColumnsLayout.FillDirection = Enum.FillDirection.Horizontal
+            self.LeftColumn.Size = UDim2.new(0.5, -5, 0, 0)
+            self.RightColumn.Size = UDim2.new(0.5, -5, 0, 0)
+        end
+    end
+
+    self.Frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateResponsiveColumns)
+    task.defer(updateResponsiveColumns)
+
     -- Aliases for backward compatibility
-    self.Container = self.Frame
-    self.ColumnContainer = self.Frame
-    self.LeftColumn = self.Frame
-    self.RightColumn = self.Frame
+    self.Container = self.ColumnsContainer
+    self.ColumnContainer = self.ColumnsContainer
 
     return self
 end
-function Tab:AddSection(name, _col)
-    return Section.new(self.Frame, name)
+
+function Tab:AddSection(configOrName, side)
+    local cfg = (typeof(configOrName) == "table" and configOrName) or { Name = tostring(configOrName or "Section") }
+    local targetSide = side or cfg.Side
+
+    local targetCol = self.LeftColumn
+    if targetSide == "Right" or targetSide == "right" or targetSide == 2 then
+        targetCol = self.RightColumn
+        self.RightCount = self.RightCount + 1
+    elseif targetSide == "Left" or targetSide == "left" or targetSide == 1 then
+        targetCol = self.LeftColumn
+        self.LeftCount = self.LeftCount + 1
+    elseif targetSide == "Full" or targetSide == "full" then
+        targetCol = self.FullContainer
+    else
+        -- Default: Auto-distribute across 2 columns (Widget 1 Left, Widget 2 Right)
+        if self.LeftCount <= self.RightCount then
+            targetCol = self.LeftColumn
+            self.LeftCount = self.LeftCount + 1
+        else
+            targetCol = self.RightColumn
+            self.RightCount = self.RightCount + 1
+        end
+    end
+
+    local sec = Section.new(targetCol, cfg)
+    table.insert(self.Sections, sec)
+    return sec
 end
+
 function Tab:SetVisible(v)
     if v then
         self.Frame.Position = UDim2.new(0, 8, 0, 0)
@@ -2370,6 +2575,7 @@ function Tab:SetVisible(v)
         self.Frame.Visible = false
     end
 end
+
 
 -- ============================================================================
 -- AUTOMATIC GAME DETECTION
@@ -2450,11 +2656,11 @@ function NovaUI:CreateWindow(config)
 
     local savedPresetKey = ConfigData["_Liyhub_DevicePreset"]
     local defaultPresetKey = isMobile and "Android" or "PC"
-    local activePresetKey = (savedPresetKey and DevicePresets[savedPresetKey]) and savedPresetKey or (config.Device or defaultPresetKey)
+    local activePresetKey = (config.Device and DevicePresets[config.Device] and config.Device)
+        or (isMobile and "Android")
+        or (savedPresetKey and DevicePresets[savedPresetKey] and savedPresetKey)
+        or defaultPresetKey
     local activePreset = DevicePresets[activePresetKey] or DevicePresets["PC"]
-
-    local initSize = config.Size or activePreset.Size
-    local logoAsset = config.Logo or "rbxassetid://0"
 
     local sgScale = Utility.Create("UIScale", { Scale = activePreset.Scale, Parent = sg })
 
@@ -2477,7 +2683,10 @@ function NovaUI:CreateWindow(config)
         return UDim2.fromOffset(targetW, targetH)
     end
 
-    local initSize = getAdaptiveWindowSize(config.Size or activePreset.Size)
+    local targetInitSize = (config.Device and DevicePresets[config.Device] and DevicePresets[config.Device].Size)
+        or (isMobile and activePreset.Size)
+        or (config.Size or activePreset.Size)
+    local initSize = getAdaptiveWindowSize(targetInitSize)
     local logoAsset = config.Logo or "rbxassetid://0"
 
     local mainFrame = Utility.Create("Frame", {
@@ -2750,7 +2959,7 @@ function NovaUI:CreateWindow(config)
     local leftHeader = Utility.Create("Frame", {
         Name = "LeftHeader",
         Size = UDim2.new(1, -150, 1, 0),
-        Position = UDim2.new(0, 42, 0, 0),
+        Position = UDim2.new(0, 44, 0, 0),
         BackgroundTransparency = 1,
         ClipsDescendants = true,
         Parent = topBar
@@ -2758,7 +2967,7 @@ function NovaUI:CreateWindow(config)
     Utility.Create("UIListLayout", {
         FillDirection = Enum.FillDirection.Horizontal,
         VerticalAlignment = Enum.VerticalAlignment.Center,
-        Padding = UDim.new(0, 8),
+        Padding = UDim.new(0, 6),
         SortOrder = Enum.SortOrder.LayoutOrder,
         Parent = leftHeader
     })
@@ -2967,7 +3176,7 @@ function NovaUI:CreateWindow(config)
 
     local resizeGripVisual = Utility.Create("Frame", {
         Name = "ResizeGripVisual",
-        Size = UDim2.new(0, 14, 0, 14),
+        Size = UDim2.new(0, 16, 0, 16),
         Position = UDim2.new(1, -16, 1, -16),
         BackgroundTransparency = 1,
         Active = false,
@@ -3115,7 +3324,19 @@ function NovaUI:CreateWindow(config)
         Parent = sidebarFrame
     })
 
-    local settingsBtn = Utility.Create("TextButton", { Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 1, -96), BackgroundColor3 = Theme.SurfaceSecondary, Font = Enum.Font.GothamMedium, Text = "  •  Settings", TextColor3 = Theme.Text, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, Parent = sidebarFrame })
+    local settingsBtn = Utility.Create("TextButton", {
+        Size = UDim2.new(1, -16, 0, 34),
+        Position = UDim2.new(0, 8, 1, -96),
+        BackgroundColor3 = Theme.SurfaceSecondary,
+        Font = Enum.Font.GothamBold,
+        FontFace = Fonts.Heading,
+        Text = "  Settings",
+        TextColor3 = Theme.Text,
+        TextSize = 12.5,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AutoButtonColor = false,
+        Parent = sidebarFrame
+    })
     Utility.AddCorner(settingsBtn, 6); Utility.AddStroke(settingsBtn, Theme.Border, 1); Utility.AddPadding(settingsBtn, 0, 0, 8, 8)
 
     local profileCard = Utility.Create("Frame", { Size = UDim2.new(1, -16, 0, 48), Position = UDim2.new(0, 8, 1, -56), BackgroundColor3 = Theme.SurfaceSecondary, Parent = sidebarFrame })
@@ -3131,15 +3352,29 @@ function NovaUI:CreateWindow(config)
         end)
     end
     Utility.Create("TextLabel", { Size = UDim2.new(1, -40, 0, 18), Position = UDim2.new(0, 38, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, Text = LocalPlayer and LocalPlayer.DisplayName or "Developer", TextColor3 = Theme.Text, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Parent = profileCard })
-    Utility.Create("TextLabel", { Size = UDim2.new(1, -40, 0, 16), Position = UDim2.new(0, 38, 0, 18), BackgroundTransparency = 1, Font = Enum.Font.Gotham, Text = "Liyhub • User", TextColor3 = Theme.Accent, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, Parent = profileCard })
+    Utility.Create("TextLabel", { Size = UDim2.new(1, -40, 0, 16), Position = UDim2.new(0, 38, 0, 18), BackgroundTransparency = 1, Font = Enum.Font.GothamBold,
+        FontFace = Fonts.Heading,
+        Text = "Liyhub - User",
+        TextColor3 = Theme.Accent,
+        TextSize = 10.5, TextXAlignment = Enum.TextXAlignment.Left, Parent = profileCard })
 
     local contentArea = Utility.Create("Frame", { Name = "ContentArea", Size = UDim2.new(1, -160, 1, 0), Position = UDim2.new(0, 160, 0, 0), BackgroundTransparency = 1, BorderSizePixel = 0, Parent = bodyFrame })
 
+    local sidebarCollapsed = false
     local function updateSidebarLayout()
         local winW = mainFrame.AbsoluteSize.X
+        local isMobileScreen = Utility.IsMobile() or (winW > 0 and winW < 580)
         local sbWidth = 160
-        if winW > 0 then
-            sbWidth = math.clamp(math.floor(winW * 0.25), 135, 185)
+        if sidebarCollapsed then
+            sbWidth = 0
+            sidebarFrame.Visible = false
+        else
+            sidebarFrame.Visible = true
+            if isMobileScreen then
+                sbWidth = math.clamp(math.floor(winW * 0.28), 115, 135)
+            else
+                sbWidth = math.clamp(math.floor(winW * 0.25), 140, 185)
+            end
         end
         sidebarFrame.Size = UDim2.new(0, sbWidth, 1, 0)
         contentArea.Size = UDim2.new(1, -sbWidth, 1, 0)
@@ -3443,7 +3678,7 @@ function NovaUI:CreateWindow(config)
         Size = UDim2.new(1, -90, 1, 0),
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamBold,
-        Text = "💾  Configuration Manager",
+        Text = "Configuration Manager",
         TextColor3 = Theme.Text,
         TextSize = 13,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -3518,7 +3753,7 @@ function NovaUI:CreateWindow(config)
         Size = UDim2.new(0.5, -4, 1, 0),
         BackgroundColor3 = Theme.SurfaceSecondary,
         Font = Enum.Font.GothamMedium,
-        Text = "💾  Save / Create",
+        Text = "Save / Create",
         TextColor3 = Theme.Text,
         TextSize = 12,
         AutoButtonColor = false,
@@ -3530,7 +3765,7 @@ function NovaUI:CreateWindow(config)
         Size = UDim2.new(0.5, -4, 1, 0),
         BackgroundColor3 = Theme.SurfaceSecondary,
         Font = Enum.Font.GothamMedium,
-        Text = "🔄  Load Config",
+        Text = "Load Config",
         TextColor3 = Theme.Text,
         TextSize = 12,
         AutoButtonColor = false,
@@ -3545,7 +3780,7 @@ function NovaUI:CreateWindow(config)
         Size = UDim2.new(0.5, -4, 1, 0),
         BackgroundColor3 = Theme.SurfaceSecondary,
         Font = Enum.Font.GothamMedium,
-        Text = "🗑️  Delete Config",
+        Text = "Delete Config",
         TextColor3 = Theme.Text,
         TextSize = 12,
         AutoButtonColor = false,
@@ -3557,7 +3792,7 @@ function NovaUI:CreateWindow(config)
         Size = UDim2.new(0.5, -4, 1, 0),
         BackgroundColor3 = Theme.SurfaceSecondary,
         Font = Enum.Font.GothamMedium,
-        Text = "🔁  Refresh List",
+        Text = "Refresh List",
         TextColor3 = Theme.Text,
         TextSize = 12,
         AutoButtonColor = false,
@@ -3618,6 +3853,9 @@ function NovaUI:CreateWindow(config)
         end
         settingsPage.Visible = true
         settingsBtn.BackgroundColor3 = Theme.SurfaceElevated
+        settingsBtn.TextColor3 = Theme.Text
+        settingsBtn.Font = Enum.Font.GothamBold
+        settingsBtn.FontFace = Fonts.Heading
     end
     settingsBtn.Activated:Connect(openSettings)
 
@@ -3657,22 +3895,27 @@ function NovaUI:CreateWindow(config)
         local name, tabIcon
         if typeof(nameOrConfig) == "table" then
             name = nameOrConfig.Name or "Tab"
-            tabIcon = nameOrConfig.Icon or "•"
+            tabIcon = nameOrConfig.Icon or "-"
         else
             name = tostring(nameOrConfig or "Tab")
-            tabIcon = icon or "•"
+            tabIcon = icon or "-"
         end
         local newTab = Tab.new(contentArea, name)
         table.insert(tabs, newTab)
+
+        local btnText = (tabIcon and tostring(tabIcon) ~= "" and tostring(tabIcon) ~= "-")
+            and ("    " .. tostring(tabIcon) .. "  " .. name)
+            or ("    " .. name)
 
         local btn = Utility.Create("TextButton", {
             Size = UDim2.new(1, 0, 0, 36),
             BackgroundColor3 = Theme.SurfaceSecondary,
             BackgroundTransparency = 0.88,
-            Font = Enum.Font.GothamMedium,
-            Text = "    " .. tabIcon .. "  " .. name,
+            Font = Enum.Font.GothamBold,
+            FontFace = Fonts.Heading,
+            Text = btnText,
             TextColor3 = Theme.TextSecondary,
-            TextSize = 11.5,
+            TextSize = 12.5,
             TextTruncate = Enum.TextTruncate.AtEnd,
             TextXAlignment = Enum.TextXAlignment.Left,
             AutoButtonColor = false,
@@ -3710,8 +3953,10 @@ function NovaUI:CreateWindow(config)
 
         local function select()
             settingsPage.Visible = false
-            settingsBtn.TextColor3 = Theme.Text
+            settingsBtn.TextColor3 = Theme.TextSecondary
             settingsBtn.BackgroundColor3 = Theme.SurfaceSecondary
+            settingsBtn.Font = Enum.Font.GothamBold
+            settingsBtn.FontFace = Fonts.Heading
             for _, tData in ipairs(tabButtons) do
                 local isActive = (tData.Tab == newTab)
                 if tData._setSelected then tData._setSelected(isActive) end

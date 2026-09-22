@@ -39,6 +39,19 @@ TargetSection:AddToggle({
     end
 })
 
+-- 5. Dual-Widget (Widget 1 | Widget 2 Berdampingan)
+local row = TargetSection:AddRow()
+row:AddToggle({
+    Name = "Auto Parry",
+    Default = false,
+    Callback = function(state) end
+})
+row:AddKeybind({
+    Name = "Parry Key",
+    Default = Enum.KeyCode.F,
+    Callback = function(key) end
+})
+
 TargetSection:AddSlider({
     Name = "Hit Chance %",
     Min = 1,
