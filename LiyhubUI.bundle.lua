@@ -1,8 +1,7 @@
 -- ============================================================================
--- LiyhubUI Framework (Powered by SmoothFluent Engine)
+-- LiyhubUI Framework
 -- Repository: https://github.com/loizs1/LiyhubUI
--- Core Engine: SmoothFluent (https://github.com/taithedev/SmoothFluent)
--- Features: Topbar Logo Image + Neverlose Profile + Top-Right Controls + Config Suite
+-- Features: Topbar Logo Image + Neverlose Profile + Universal Config Suite
 -- ============================================================================
 
 local TweenService = game:GetService("TweenService")
@@ -888,6 +887,11 @@ local function addSection(tab, titleText, iconOptional)
                     f.Size = UDim2.new(1, 0, 0, headerH + optHeight + 8)
                 end
             end,
+            SetOptions = function(self, newVals, selectVal)
+                self:SetValues(newVals)
+                if selectVal then self:SetValue(selectVal) end
+            end,
+            Set = function(self, v) self:SetValue(v) end,
             GetValue = function() return isMulti and selected or current end,
             SetSearch = function(_, q)
                 f.Visible = q == "" or string.find(string.lower(cfg.Title or cfg.Name or flag), q, 1, true) ~= nil
@@ -1430,7 +1434,7 @@ function Fluent:CreateWindow(o)
 
     local w = {
         Title = o.Title or "Liyhub",
-        SubTitle = o.Author or o.SubTitle or "SmoothFluent Edition",
+        SubTitle = o.Author or o.SubTitle or "",
         Size = size,
         Tabs = {},
         _tabs = {},
@@ -1606,13 +1610,20 @@ function Fluent:CreateWindow(o)
     logoStroke.Parent = logoImg
 
     local title = text(bar, w.Title, 16)
-    title.Position = UDim2.fromOffset(62, 10)
-    title.Size = UDim2.new(1, -340, 0, 20)
     title.Font = Enum.Font.GothamBold
 
-    local sub = text(bar, w.SubTitle, 11, self.CurrentTheme.SubText)
-    sub.Position = UDim2.fromOffset(63, 30)
-    sub.Size = UDim2.new(1, -340, 0, 16)
+    local sub = text(bar, w.SubTitle or "", 11, self.CurrentTheme.SubText)
+    if w.SubTitle and w.SubTitle ~= "" then
+        title.Position = UDim2.fromOffset(62, 10)
+        title.Size = UDim2.new(1, -340, 0, 20)
+        sub.Position = UDim2.fromOffset(63, 30)
+        sub.Size = UDim2.new(1, -340, 0, 16)
+        sub.Visible = true
+    else
+        title.Position = UDim2.fromOffset(62, 19)
+        title.Size = UDim2.new(1, -340, 0, 22)
+        sub.Visible = false
+    end
 
     -- Top-Right Controls: Search Box, Minimize [-], Close [X]
     local searchFrame = Instance.new("Frame")
@@ -2134,7 +2145,326 @@ function Fluent:CreateWindow(o)
     w.Notify = function(_, opt) return Fluent:Notify(opt) end
     w.MakeNotify = function(_, opt) return Fluent:Notify(opt) end
 
+    -- Universal Config Manager API
+    function w:SaveConfig(name) return Fluent:SaveConfig(name) end
+    function w:LoadConfig(name) return Fluent:LoadConfig(name) end
+    function w:DeleteConfig(name) return Fluent:DeleteConfig(name) end
+    function w:GetConfigs() return Fluent:GetConfigs() end
+
+    function w:BuildConfigSection(targetSecOrTab)
+        local sec
+        if targetSecOrTab and targetSecOrTab.AddSection then
+            sec = targetSecOrTab:AddSection({ Name = "Config Profile Manager", Icon = "save" })
+        elseif targetSecOrTab and targetSecOrTab.AddToggle then
+            sec = targetSecOrTab
+        else
+            local tab = self:AddTab("Settings", "settings")
+            sec = tab:AddSection({ Name = "Config Profile Manager", Icon = "save" })
+        end
+
+        local currentProfile = "default"
+        local configsList = Fluent:GetConfigs()
+
+        local profileInput = sec:AddTextbox({
+            Name = "Profile Name",
+            Placeholder = "Profile name (e.g. default)...",
+            Default = "default",
+            Callback = function(txt)
+                if txt and txt ~= "" then currentProfile = txt end
+            end
+        })
+
+        local profileDropdown = sec:AddDropdown({
+            Name = "Select Saved Profile",
+            Options = configsList,
+            Default = configsList[1] or "default",
+            Callback = function(choice)
+                currentProfile = choice
+                if profileInput and profileInput.SetValue then
+                    profileInput:SetValue(choice)
+                end
+            end
+        })
+
+        local row1 = sec:AddRow()
+        row1:AddButton({
+            Name = "Save Config",
+            Callback = function()
+                Fluent:SaveConfig(currentProfile)
+                local updated = Fluent:GetConfigs()
+                if profileDropdown and profileDropdown.SetOptions then
+                    profileDropdown:SetOptions(updated, currentProfile)
+                end
+            end
+        })
+        row1:AddButton({
+            Name = "Load Config",
+            Callback = function()
+                Fluent:LoadConfig(currentProfile)
+            end
+        })
+
+        local row2 = sec:AddRow()
+        row2:AddButton({
+            Name = "Delete Config",
+            Callback = function()
+                Fluent:DeleteConfig(currentProfile)
+                local updated = Fluent:GetConfigs()
+                currentProfile = updated[1] or "default"
+                if profileDropdown and profileDropdown.SetOptions then
+                    profileDropdown:SetOptions(updated, currentProfile)
+                end
+                if profileInput and profileInput.SetValue then
+                    profileInput:SetValue(currentProfile)
+                end
+            end
+        })
+        row2:AddButton({
+            Name = "Refresh List",
+            Callback = function()
+                local updated = Fluent:GetConfigs()
+                if profileDropdown and profileDropdown.SetOptions then
+                    profileDropdown:SetOptions(updated, currentProfile)
+                end
+                Fluent:Notify({ Title = "Config Manager", Content = "Profiles refreshed.", Type = "Info", Duration = 1.5 })
+            end
+        })
+
+        return sec
+    end
+
+    function w:AddSettingsTab()
+        local tab = w:AddTab("Settings", "settings")
+        w:BuildConfigSection(tab)
+        local menuSec = tab:AddSection({ Name = "Menu Options", Icon = "settings" })
+        menuSec:AddKeybind({
+            Name = "Menu Keybind",
+            Default = o.MinimizeKey or Enum.KeyCode.RightControl,
+            Callback = function(k)
+                o.MinimizeKey = k
+            end
+        })
+        menuSec:AddButton({
+            Name = "Unload / Close Menu",
+            Callback = function()
+                w:Destroy()
+            end
+        })
+        return tab
+    end
+
+    if o.SaveConfig or o.AutoConfig then
+        task.defer(function()
+            if not w.Tabs["Settings"] and not w.Tabs["settings"] then
+                w:AddSettingsTab()
+            end
+        end)
+    end
+
     return w
+end
+
+-- ============================================================================
+-- Universal Config Serialization & Storage System
+-- ============================================================================
+local HttpService = game:GetService("HttpService")
+local CONFIG_BASE_DIR = "Liyhub"
+local CONFIG_DIR = "Liyhub/Configs"
+
+local function ensureConfigDir()
+    if typeof(isfolder) == "function" and typeof(makefolder) == "function" then
+        pcall(function()
+            if not isfolder(CONFIG_BASE_DIR) then makefolder(CONFIG_BASE_DIR) end
+            if not isfolder(CONFIG_DIR) then makefolder(CONFIG_DIR) end
+        end)
+    end
+end
+
+local function getPlaceFilePrefix()
+    local pid = game.PlaceId or 0
+    return "Place_" .. tostring(pid)
+end
+
+local function serializeValue(v)
+    if typeof(v) == "Color3" then
+        return { __type = "Color3", R = v.R, G = v.G, B = v.B }
+    elseif typeof(v) == "EnumItem" then
+        return { __type = "EnumItem", EnumType = tostring(v.EnumType), Name = v.Name }
+    elseif type(v) == "table" then
+        local t = {}
+        for k, subV in pairs(v) do
+            t[tostring(k)] = serializeValue(subV)
+        end
+        return t
+    else
+        return v
+    end
+end
+
+local function deserializeValue(v)
+    if type(v) == "table" and v.__type then
+        if v.__type == "Color3" then
+            return Color3.new(v.R or 1, v.G or 1, v.B or 1)
+        elseif v.__type == "EnumItem" then
+            if v.EnumType == "KeyCode" and Enum.KeyCode[v.Name] then
+                return Enum.KeyCode[v.Name]
+            end
+        end
+    elseif type(v) == "table" then
+        local t = {}
+        for k, subV in pairs(v) do
+            t[k] = deserializeValue(subV)
+        end
+        return t
+    end
+    return v
+end
+
+local _memoryConfigs = {}
+
+function Fluent:GetConfigs()
+    ensureConfigDir()
+    local list = {}
+    local seen = {}
+    local prefix = getPlaceFilePrefix() .. "_"
+
+    if typeof(listfiles) == "function" and typeof(isfolder) == "function" and isfolder(CONFIG_DIR) then
+        local s, files = pcall(listfiles, CONFIG_DIR)
+        if s and type(files) == "table" then
+            for _, f in ipairs(files) do
+                local name = f:match("([^/\\]+)%.json$")
+                if name then
+                    local cleanName = name
+                    if name:sub(1, #prefix) == prefix then
+                        cleanName = name:sub(#prefix + 1)
+                    end
+                    if not seen[cleanName] then
+                        seen[cleanName] = true
+                        table.insert(list, cleanName)
+                    end
+                end
+            end
+        end
+    end
+
+    for k, _ in pairs(_memoryConfigs) do
+        if not seen[k] then
+            seen[k] = true
+            table.insert(list, k)
+        end
+    end
+
+    if #list == 0 then table.insert(list, "default") end
+    table.sort(list)
+    return list
+end
+
+function Fluent:SaveConfig(name)
+    name = (name and name ~= "") and name or "default"
+    ensureConfigDir()
+    local data = {
+        _version = 1,
+        _placeId = game.PlaceId,
+        _timestamp = os.time(),
+        Flags = {}
+    }
+    for flag, val in pairs(self.Flags) do
+        data.Flags[flag] = serializeValue(val)
+    end
+
+    local encoded = HttpService:JSONEncode(data)
+    _memoryConfigs[name] = encoded
+
+    local savedToFile = false
+    if typeof(writefile) == "function" then
+        local path = CONFIG_DIR .. "/" .. getPlaceFilePrefix() .. "_" .. name .. ".json"
+        local s, _ = pcall(writefile, path, encoded)
+        savedToFile = s
+    end
+
+    self:Notify({
+        Title = "Config Saved",
+        Content = "Profile '" .. name .. "' successfully saved.",
+        Type = "Success",
+        Duration = 2.5
+    })
+    return true
+end
+
+function Fluent:LoadConfig(name)
+    name = (name and name ~= "") and name or "default"
+    ensureConfigDir()
+    local raw = nil
+
+    if typeof(isfile) == "function" and typeof(readfile) == "function" then
+        local path = CONFIG_DIR .. "/" .. getPlaceFilePrefix() .. "_" .. name .. ".json"
+        if isfile(path) then
+            pcall(function() raw = readfile(path) end)
+        end
+    end
+
+    if not raw then
+        raw = _memoryConfigs[name]
+    end
+
+    if not raw then
+        self:Notify({
+            Title = "Config Not Found",
+            Content = "Profile '" .. name .. "' does not exist.",
+            Type = "Warning",
+            Duration = 2.5
+        })
+        return false
+    end
+
+    local s, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not s or type(data) ~= "table" or type(data.Flags) ~= "table" then
+        self:Notify({
+            Title = "Config Error",
+            Content = "Invalid config format for '" .. name .. "'.",
+            Type = "Warning",
+            Duration = 2.5
+        })
+        return false
+    end
+
+    for flag, rawVal in pairs(data.Flags) do
+        local val = deserializeValue(rawVal)
+        self.Flags[flag] = val
+        local opt = self.Options[flag]
+        if opt and opt.SetValue then
+            pcall(function() opt:SetValue(val, true) end)
+        elseif opt and opt.Set then
+            pcall(function() opt:Set(val, true) end)
+        end
+    end
+
+    self:Notify({
+        Title = "Config Loaded",
+        Content = "Profile '" .. name .. "' applied to script.",
+        Type = "Success",
+        Duration = 2.5
+    })
+    return true
+end
+
+function Fluent:DeleteConfig(name)
+    name = (name and name ~= "") and name or "default"
+    ensureConfigDir()
+    _memoryConfigs[name] = nil
+    local path = CONFIG_DIR .. "/" .. getPlaceFilePrefix() .. "_" .. name .. ".json"
+    local del = false
+    if typeof(isfile) == "function" and typeof(delfile) == "function" and isfile(path) then
+        local s = pcall(delfile, path)
+        del = s
+    end
+    self:Notify({
+        Title = "Config Deleted",
+        Content = "Profile '" .. name .. "' removed.",
+        Type = "Info",
+        Duration = 2
+    })
+    return true
 end
 
 -- Notification System (Compatible with Old UI MakeNotify & Modern Fluent Toast)
