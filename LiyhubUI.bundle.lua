@@ -2130,55 +2130,102 @@ function Fluent:CreateWindow(o)
         end
     end)
 
+    -- Compatibility Aliases for Notifications
+    w.Notify = function(_, opt) return Fluent:Notify(opt) end
+    w.MakeNotify = function(_, opt) return Fluent:Notify(opt) end
+
     return w
 end
 
--- Notification System
+-- Notification System (Compatible with Old UI MakeNotify & Modern Fluent Toast)
 function Fluent:Notify(o)
     o = o or {}
     local holder = self._notifyHolder
     if not holder or not holder.Parent then
+        local pGui = parentGui()
+        local notifyGui = pGui:FindFirstChild("LiyhubNotifyGui")
+        if not notifyGui then
+            notifyGui = Instance.new("ScreenGui")
+            notifyGui.Name = "LiyhubNotifyGui"
+            notifyGui.ResetOnSpawn = false
+            notifyGui.IgnoreGuiInset = true
+            notifyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            notifyGui.DisplayOrder = 9999
+            notifyGui.Parent = pGui
+        end
+
         holder = Instance.new("Frame")
         holder.Name = "LiyhubNotifyHolder"
         holder.BackgroundTransparency = 1
         holder.AnchorPoint = Vector2.new(1, 1)
-        holder.Position = UDim2.new(1, -18, 1, -18)
-        holder.Size = UDim2.fromOffset(330, 450)
-        holder.Parent = parentGui()
+        holder.Position = UDim2.new(1, -20, 1, -20)
+        holder.Size = UDim2.fromOffset(320, 480)
+        holder.ZIndex = 1000
+        holder.Parent = notifyGui
 
         local l = Instance.new("UIListLayout")
         l.VerticalAlignment = Enum.VerticalAlignment.Bottom
+        l.HorizontalAlignment = Enum.HorizontalAlignment.Right
         l.Padding = UDim.new(0, 8)
+        l.SortOrder = Enum.SortOrder.LayoutOrder
         l.Parent = holder
         self._notifyHolder = holder
     end
 
-    local c = self.CurrentTheme[o.Type or "Info"] or self.CurrentTheme.Info
+    local titleStr = o.Title or "Liyhub"
+    local descStr = o.Content or o.Description or o.Desc or o.Text or o.SubTitle or ""
+    local duration = o.Duration or o.Delay or o.Time or 3.5
+    local c = o.Color or self.CurrentTheme[o.Type or "Info"] or self.CurrentTheme.Info or self.CurrentTheme.Accent
+
     local f = Instance.new("Frame")
-    f.BackgroundColor3 = self.CurrentTheme.Surface
-    f.Size = UDim2.new(1, 0, 0, 75)
+    f.Name = "Toast"
+    f.BackgroundColor3 = Color3.fromRGB(15, 17, 24)
+    f.BackgroundTransparency = 0.05
+    f.Size = UDim2.new(1, 0, 0, 68)
+    f.ClipsDescendants = true
+    f.ZIndex = 1001
     f.Parent = holder
     corner(f, 10)
-    stroke(f, c, 0.15)
+    stroke(f, c, 0.45)
 
-    local t = text(f, o.Title or "Liyhub", 14)
-    t.Position = UDim2.fromOffset(14, 9)
-    t.Size = UDim2.new(1, -25, 0, 20)
+    -- Left Accent Indicator Bar
+    local bar = Instance.new("Frame")
+    bar.Name = "AccentBar"
+    bar.Size = UDim2.new(0, 4, 1, -16)
+    bar.Position = UDim2.fromOffset(8, 8)
+    bar.BackgroundColor3 = c
+    bar.BorderSizePixel = 0
+    bar.ZIndex = 1002
+    bar.Parent = f
+    corner(bar, 2)
+
+    local t = text(f, titleStr, 13, self.CurrentTheme.Text)
+    t.Position = UDim2.fromOffset(20, 8)
+    t.Size = UDim2.new(1, -28, 0, 18)
     t.Font = Enum.Font.GothamBold
+    t.ZIndex = 1002
 
-    local b = text(f, o.Content or "", 11, Fluent.CurrentTheme.SubText)
-    b.Position = UDim2.fromOffset(14, 32)
-    b.Size = UDim2.new(1, -25, 0, 35)
+    local b = text(f, descStr, 11, self.CurrentTheme.SubText)
+    b.Position = UDim2.fromOffset(20, 28)
+    b.Size = UDim2.new(1, -28, 0, 32)
+    b.TextTruncate = Enum.TextTruncate.AtEnd
+    b.ZIndex = 1002
 
-    task.delay(o.Duration or 3.5, function()
-        if f.Parent then
-            tween(f, 0.18, { BackgroundTransparency = 1 })
-            task.wait(0.2)
-            f:Destroy()
+    -- Slide-in animation
+    f.Position = UDim2.new(0, 40, 0, 0)
+    tween(f, 0.22, { Position = UDim2.new(0, 0, 0, 0) })
+
+    task.delay(duration, function()
+        if f and f.Parent then
+            tween(f, 0.22, { BackgroundTransparency = 1, Position = UDim2.new(0, 50, 0, 0) })
+            task.wait(0.22)
+            if f and f.Parent then f:Destroy() end
         end
     end)
     return f
 end
+
+Fluent.MakeNotify = Fluent.Notify
 
 function Fluent:SetTheme(name)
     if self.Themes[name] then
