@@ -284,6 +284,23 @@ local LucideIcons = {
     ["chevron-left"] = "rbxassetid://10709791437",
     ["play"] = "rbxassetid://10709810875",
     ["pause"] = "rbxassetid://10709810834",
+    ["home"] = "rbxassetid://10709798730",
+    ["bot"] = "rbxassetid://10709791963",
+    ["paw"] = "rbxassetid://10709810842",
+    ["egg"] = "rbxassetid://10709798485",
+    ["sparkles"] = "rbxassetid://10709818249",
+    ["utensils"] = "rbxassetid://10709819119",
+    ["shopping-cart"] = "rbxassetid://10709818177",
+    ["cart"] = "rbxassetid://10709818177",
+    ["building-store"] = "rbxassetid://10709818177",
+    ["store"] = "rbxassetid://10709818177",
+    ["shop"] = "rbxassetid://10709818177",
+    ["chart-line"] = "rbxassetid://10709790074",
+    ["chart"] = "rbxassetid://10709790074",
+    ["shield-check"] = "rbxassetid://10709818785",
+    ["shield"] = "rbxassetid://10709818785",
+    ["cube-vertexes"] = "rbxassetid://10709797532",
+    ["chart-four-vertical-bars"] = "rbxassetid://10709790074",
 }
 
 local function resolveIcon(raw)
@@ -2180,7 +2197,7 @@ function Fluent:CreateWindow(o)
         local wmHolder = Instance.new("Frame")
         wmHolder.Name = "LiyhubWatermark"
         wmHolder.AnchorPoint = Vector2.new(0, 0)
-        wmHolder.Position = UDim2.fromOffset(18, 16)
+        wmHolder.Position = UDim2.fromOffset(160, 14)
         wmHolder.Size = UDim2.fromOffset(0, 30)
         wmHolder.AutomaticSize = Enum.AutomaticSize.X
         wmHolder.BackgroundTransparency = 1
