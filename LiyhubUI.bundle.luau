@@ -306,17 +306,54 @@ local LucideIcons = {
 local function resolveIcon(raw)
     if not raw or raw == "" then return nil, nil end
     if type(raw) ~= "string" then return nil, nil end
-    local lower = string.lower(raw)
+
+    local lower = string.lower(raw):gsub("^%s+", ""):gsub("%s+$", "")
+
     if LucideIcons[lower] then
         return "image", LucideIcons[lower]
     end
+
+    -- Keyword fallbacks for compound names
+    if lower:find("home") or lower:find("plot") or lower:find("house") then
+        return "image", LucideIcons["home"]
+    elseif lower:find("bot") or lower:find("robot") or lower:find("kaitun") then
+        return "image", LucideIcons["bot"]
+    elseif lower:find("cart") or lower:find("shop") or lower:find("auto") or lower:find("buy") then
+        return "image", LucideIcons["shopping-cart"]
+    elseif lower:find("paw") or lower:find("pet") then
+        return "image", LucideIcons["paw"]
+    elseif lower:find("egg") then
+        return "image", LucideIcons["egg"]
+    elseif lower:find("sparkle") or lower:find("hatch") then
+        return "image", LucideIcons["sparkles"]
+    elseif lower:find("chart") or lower:find("stat") or lower:find("bar") or lower:find("graph") then
+        return "image", LucideIcons["chart-line"]
+    elseif lower:find("shield") or lower:find("protect") or lower:find("util") or lower:find("afk") then
+        return "image", LucideIcons["shield-check"]
+    elseif lower:find("eye") or lower:find("esp") or lower:find("visual") then
+        return "image", LucideIcons["eye"]
+    elseif lower:find("search") or lower:find("track") then
+        return "image", LucideIcons["search"]
+    elseif lower:find("utensil") or lower:find("feed") or lower:find("food") or lower:find("fork") then
+        return "image", LucideIcons["utensils"]
+    elseif lower:find("cube") or lower:find("box") or lower:find("liyhub") then
+        return "image", LucideIcons["cube-vertexes"]
+    end
+
     if string.sub(raw, 1, 13) == "rbxassetid://" or string.sub(raw, 1, 11) == "rbxasset://" or string.find(raw, "://") then
         return "image", raw
     end
     if tonumber(raw) then
         return "image", "rbxassetid://" .. raw
     end
-    return "text", raw
+
+    -- Only return as text if it's an actual emoji (length <= 2)
+    if utf8.len(raw) and utf8.len(raw) <= 2 then
+        return "text", raw
+    end
+
+    -- Default fallback icon for unknown words
+    return "image", LucideIcons["package"] or "rbxassetid://10709797532"
 end
 
 local function makeElement(parent, titleText, descText, h, iconOptional, orderOptional)
@@ -2194,79 +2231,130 @@ function Fluent:CreateWindow(o)
     function w:ToggleInterface() self:Toggle() end
 
     function w:Watermark(watermarkCfg)
-        local wmHolder = Instance.new("Frame")
-        wmHolder.Name = "LiyhubWatermark"
-        wmHolder.AnchorPoint = Vector2.new(0, 0)
-        wmHolder.Position = UDim2.fromOffset(160, 14)
-        wmHolder.Size = UDim2.fromOffset(0, 30)
-        wmHolder.AutomaticSize = Enum.AutomaticSize.X
-        wmHolder.BackgroundTransparency = 1
-        wmHolder.ZIndex = 500
-        wmHolder.Parent = gui
+        -- Top-right contiguous capsule pill HUD (Image 2 exact match)
+        local wmPill = Instance.new("Frame")
+        wmPill.Name = "LiyhubWatermark"
+        wmPill.AnchorPoint = Vector2.new(1, 0)
+        wmPill.Position = UDim2.new(1, -20, 0, 16)
+        wmPill.Size = UDim2.fromOffset(0, 32)
+        wmPill.AutomaticSize = Enum.AutomaticSize.X
+        wmPill.BackgroundColor3 = Color3.fromRGB(15, 17, 24)
+        wmPill.BackgroundTransparency = 0.15
+        wmPill.ClipsDescendants = false
+        wmPill.ZIndex = 500
+        wmPill.Parent = gui
+        corner(wmPill, 16)
+        stroke(wmPill, Color3.fromRGB(255, 255, 255), 0.72)
+
+        -- Top Cyan Glow Line (Centered highlight, NO scale to avoid AutomaticSize stretch)
+        local topGlow = Instance.new("Frame")
+        topGlow.Name = "TopGlow"
+        topGlow.Size = UDim2.fromOffset(0, 2)
+        topGlow.Position = UDim2.new(0.5, 0, 0, 0)
+        topGlow.AnchorPoint = Vector2.new(0.5, 0)
+        topGlow.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
+        topGlow.BorderSizePixel = 0
+        topGlow.ZIndex = 502
+        topGlow.Parent = wmPill
+        corner(topGlow, 1)
+
+        local glowGrad = Instance.new("UIGradient")
+        glowGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1),
+            NumberSequenceKeypoint.new(0.2, 0.4),
+            NumberSequenceKeypoint.new(0.5, 0),
+            NumberSequenceKeypoint.new(0.8, 0.4),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        glowGrad.Parent = topGlow
+
+        -- Inner Content Container (isolated from TopGlow to prevent scale recursion)
+        local content = Instance.new("Frame")
+        content.Name = "Content"
+        content.BackgroundTransparency = 1
+        content.Size = UDim2.fromOffset(0, 32)
+        content.AutomaticSize = Enum.AutomaticSize.X
+        content.ZIndex = 503
+        content.Parent = wmPill
+        pad(content, 4, 18, 4, 18)
 
         local wmLay = Instance.new("UIListLayout")
         wmLay.FillDirection = Enum.FillDirection.Horizontal
-        wmLay.Padding = UDim.new(0, 6)
+        wmLay.VerticalAlignment = Enum.VerticalAlignment.Center
+        wmLay.Padding = UDim.new(0, 16)
         wmLay.SortOrder = Enum.SortOrder.LayoutOrder
-        wmLay.Parent = wmHolder
+        wmLay.Parent = content
 
-        local wm = { Holder = wmHolder }
+        content:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            local w = content.AbsoluteSize.X
+            if w > 0 then
+                topGlow.Size = UDim2.fromOffset(math.max(10, math.floor(w * 0.7)), 2)
+            end
+        end)
+
+        local wm = { Holder = wmPill }
         function wm:AddBlock(iconName, textVal)
-            local btn = Instance.new("TextButton")
-            btn.Name = "Block_" .. tostring(textVal or "Block")
-            btn.AutoButtonColor = false
-            btn.Text = ""
-            btn.BackgroundColor3 = Fluent.CurrentTheme.Surface
-            btn.BackgroundTransparency = 0.15
-            btn.Size = UDim2.fromOffset(0, 26)
-            btn.AutomaticSize = Enum.AutomaticSize.X
-            btn.ZIndex = 501
-            btn.Parent = wmHolder
-            corner(btn, 6)
-            stroke(btn, Fluent.CurrentTheme.Border, 0.4)
-            pad(btn, 3, 9, 3, 9)
+            local blockFrame = Instance.new("Frame")
+            blockFrame.Name = "Block_" .. tostring(textVal or "Block")
+            blockFrame.BackgroundTransparency = 1
+            blockFrame.Size = UDim2.fromOffset(0, 22)
+            blockFrame.AutomaticSize = Enum.AutomaticSize.X
+            blockFrame.ZIndex = 504
+            blockFrame.Parent = content
 
             local rowLay = Instance.new("UIListLayout")
             rowLay.FillDirection = Enum.FillDirection.Horizontal
             rowLay.VerticalAlignment = Enum.VerticalAlignment.Center
-            rowLay.Padding = UDim.new(0, 5)
-            rowLay.Parent = btn
+            rowLay.Padding = UDim.new(0, 6)
+            rowLay.Parent = blockFrame
 
             local iType, iVal = resolveIcon(iconName)
+            local ico = nil
             if iType == "image" then
-                local ico = Instance.new("ImageLabel")
-                ico.Size = UDim2.fromOffset(13, 13)
+                ico = Instance.new("ImageLabel")
+                ico.Size = UDim2.fromOffset(14, 14)
                 ico.BackgroundTransparency = 1
                 ico.Image = iVal
-                ico.ImageColor3 = Fluent.CurrentTheme.Accent
+                ico.ImageColor3 = Color3.fromRGB(0, 162, 255)
                 ico.ScaleType = Enum.ScaleType.Fit
-                ico.ZIndex = 502
-                ico.Parent = btn
+                ico.ZIndex = 505
+                ico.Parent = blockFrame
             elseif iType == "text" then
                 local em = Instance.new("TextLabel")
                 em.Size = UDim2.fromOffset(14, 14)
                 em.BackgroundTransparency = 1
                 em.Text = iVal
                 em.TextSize = 12
-                em.TextColor3 = Fluent.CurrentTheme.Accent
+                em.TextColor3 = Color3.fromRGB(0, 162, 255)
                 em.Font = Enum.Font.GothamMedium
-                em.ZIndex = 502
-                em.Parent = btn
+                em.ZIndex = 505
+                em.Parent = blockFrame
             end
 
-            local lbl = text(btn, tostring(textVal or ""), 11, Fluent.CurrentTheme.Text)
-            lbl.Size = UDim2.fromOffset(0, 18)
+            local lbl = text(blockFrame, tostring(textVal or ""), 11, Fluent.CurrentTheme.Text)
+            lbl.Size = UDim2.fromOffset(0, 20)
             lbl.AutomaticSize = Enum.AutomaticSize.X
             lbl.Font = Enum.Font.GothamBold
-            lbl.ZIndex = 502
+            lbl.ZIndex = 505
 
-            local blockObj = { Button = btn, Label = lbl }
+            local blockBtn = nil
+
+            local blockObj = { Frame = blockFrame, Label = lbl, Icon = ico }
             function blockObj:SetText(t)
                 lbl.Text = tostring(t or "")
             end
             blockObj.Text = blockObj.SetText
             function blockObj:Input(cb)
-                btn.MouseButton1Click:Connect(function()
+                if not blockBtn then
+                    blockBtn = Instance.new("TextButton")
+                    blockBtn.Name = "HitArea"
+                    blockBtn.BackgroundTransparency = 1
+                    blockBtn.Text = ""
+                    blockBtn.Size = UDim2.fromScale(1, 1)
+                    blockBtn.ZIndex = 506
+                    blockBtn.Parent = blockFrame
+                end
+                blockBtn.MouseButton1Click:Connect(function()
                     if type(cb) == "function" then cb() end
                 end)
             end
