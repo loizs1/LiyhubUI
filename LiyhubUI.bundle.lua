@@ -946,16 +946,34 @@ local function addSection(tab, titleText, iconOptional)
             Open = function() toggleOpen(true) end,
             Close = function() toggleOpen(false) end,
             Toggle = function() toggleOpen() end,
-            SetValue = function(_, v)
+            SetValue = function(_, v, fire)
                 if isMulti then
                     selected = {}
                     if type(v) == "table" then
-                        for _, item in ipairs(v) do selected[item] = true end
+                        for k, item in pairs(v) do
+                            if type(k) == "number" then
+                                selected[item] = true
+                            else
+                                selected[k] = (item == true)
+                            end
+                        end
+                    elseif v ~= nil then
+                        selected[v] = true
                     end
                     Fluent.Flags[flag] = selected
+                    if fire ~= false then
+                        local outList = {}
+                        for _, item in ipairs(values) do
+                            if selected[item] then table.insert(outList, item) end
+                        end
+                        safe(cfg.Callback, outList)
+                    end
                 else
                     current = v
                     Fluent.Flags[flag] = v
+                    if fire ~= false then
+                        safe(cfg.Callback, v)
+                    end
                 end
                 pillLabel.Text = getSummary()
                 buildOptions()
@@ -1036,9 +1054,12 @@ local function addSection(tab, titleText, iconOptional)
 
         local e = {
             Frame = f,
-            SetValue = function(_, v)
-                box.Text = tostring(v)
+            SetValue = function(_, v, fire)
+                box.Text = tostring(v or "")
                 Fluent.Flags[flag] = box.Text
+                if fire ~= false then
+                    safe(cfg.Callback, box.Text)
+                end
             end,
             GetValue = function() return box.Text end,
             SetSearch = function(_, q)
