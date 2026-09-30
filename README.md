@@ -1,10 +1,12 @@
-# LiyhubUI Framework
+# LiyhubUI Framework (WindUI Integration)
 
-LiyhubUI (NovaUI) is a high-performance, dark-modern UI framework and universal cheat hub engine designed for Roblox executors and Studio.
+LiyhubUI 2.0 is a dark-modern, high-performance UI framework powered by the **WindUI** engine ([Footagesus/WindUI](https://github.com/Footagesus/WindUI)). It provides deep procedural styling, smooth animations, native draggable mobile floating buttons, Lucide/Solar icons, and multi-game execution compatibility for both Roblox Studio and Executors.
 
-## 🚀 Instant Loadstring (Standalone)
+---
 
-You can load and use LiyhubUI in any script with a single line:
+## 🚀 Instant Loadstring
+
+Load LiyhubUI into any script with a single line:
 
 ```luau
 local Liyhub = loadstring(game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/LiyhubUI.bundle.luau"))()
@@ -12,195 +14,180 @@ local Liyhub = loadstring(game:HttpGet("https://raw.githubusercontent.com/loizs1
 
 ---
 
-## 📖 Cara Kerja 1: Universal Script Library
+## 🎨 Liyhub Obsidian Theme
 
-Gunakan template ini untuk membuat script cheat pada game apa saja tanpa mengubah link UI:
+LiyhubUI automatically injects and activates the **`Liyhub`** obsidian palette:
+- **Canvas / Background**: `#0A0A0D` (Pure deep obsidian)
+- **Primary / Accent**: `#00A2FF` (Electric Liyhub Cyan)
+- **Active Toggle**: `#00E5FF` (Neon Cyan)
+- **Cards & Dialogs**: `#101015` / `#121217`
+- **Text**: `#FFFFFF` (Crisp solid white) & `#8C91A5` (Subdued labels)
 
+You can also use any standard WindUI theme (`Dark`, `Light`, `Rose`, `Plant`, `Midnight`, `Cyberpunk`) via `Window:SetTheme("Dark")` or `Liyhub:SetTheme("Liyhub")`.
+
+---
+
+## 🛠️ Complete Component API Reference
+
+LiyhubUI supports **both** classic Liyhub component calls and native WindUI calls:
+
+### 1. Creating the Window
 ```luau
--- 1. Import UI Library
-local Liyhub = loadstring(game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/LiyhubUI.bundle.luau"))()
-
--- 2. Inisialisasi Window
 local Window = Liyhub:CreateWindow({
-    Title = "Liyhub | Jailbreak",
-    Size = UDim2.fromOffset(740, 490)
+    Title = "Liyhub | Game Name",
+    Author = "Liyhub Team",
+    Folder = "Liyhub_GameConfig",
+    Icon = "solar:box-bold-duotone", -- Solar or Lucide icon
+    Theme = "Liyhub",                -- Default is Liyhub
+    Size = UDim2.fromOffset(740, 490),
+    OpenButton = {                   -- Built-in Draggable Mobile Floating Button
+        Enabled = true,
+        OnlyMobile = false,
+        Scale = 0.5,
+    }
 })
+```
 
--- 3. Tambah Tab & Section
-local Combat = Window:AddTab("Combat", "🎯")
-local TargetSection = Combat:AddSection("Aimbot", "Left")
+### 2. Tabs & Sections
+```luau
+-- Add Tab (Accepts Name and Icon)
+local CombatTab = Window:AddTab("Combat", "solar:target-bold-duotone")
 
--- 4. Tambah Komponen & Callback
-TargetSection:AddToggle({
+-- Add Section
+local AimSec = CombatTab:AddSection("Targeting")
+```
+
+### 3. Component Suite
+```luau
+-- Toggle
+AimSec:AddToggle({
     Name = "Silent Aim",
-    Default = true,
-    Callback = function(state)
-        -- Masukkan logika fitur
+    Desc = "Redirects projectile trajectory directly to enemy hitbox.",
+    Default = false,
+    Callback = function(state: boolean)
+        -- logic
     end
 })
 
--- 5. Dual-Widget (Widget 1 | Widget 2 Berdampingan)
-local row = TargetSection:AddRow()
-row:AddToggle({
-    Name = "Auto Parry",
-    Default = false,
-    Callback = function(state) end
-})
-row:AddKeybind({
-    Name = "Parry Key",
-    Default = Enum.KeyCode.F,
-    Callback = function(key) end
-})
-
-TargetSection:AddSlider({
+-- Slider
+AimSec:AddSlider({
     Name = "Hit Chance %",
-    Min = 1,
+    Desc = "Targeting probability calculation.",
+    Min = 0,
     Max = 100,
     Default = 85,
-    Callback = function(value)
-        -- Masukkan logika fitur
+    Step = 1,
+    Callback = function(val: number)
+        -- logic
     end
+})
+
+-- Dropdown (Single Select)
+AimSec:AddDropdown({
+    Name = "Target Hitbox",
+    Options = { "Head", "HumanoidRootPart", "Torso", "Random" },
+    Default = "Head",
+    Callback = function(choice: string)
+        -- logic
+    end
+})
+
+-- MultiDropdown (Multi Select)
+AimSec:AddMultiDropdown({
+    Name = "Target Filter",
+    Options = { "Enemies", "NPCs", "Friends", "Downed" },
+    Default = { "Enemies" },
+    Callback = function(selectedList: {string})
+        -- logic
+    end
+})
+
+-- ColorPicker
+AimSec:AddColorPicker({
+    Name = "Chams Accent Color",
+    Default = Color3.fromRGB(0, 162, 255),
+    Callback = function(col: Color3)
+        -- logic
+    end
+})
+
+-- Keybind
+AimSec:AddKeybind({
+    Name = "Trigger Keybind",
+    Default = Enum.KeyCode.RightControl,
+    Callback = function(key: Enum.KeyCode)
+        -- logic
+    end
+})
+
+-- Textbox / Input
+AimSec:AddTextbox({
+    Name = "Target Player",
+    Placeholder = "Enter username...",
+    Default = "",
+    Callback = function(text: string)
+        -- logic
+    end
+})
+
+-- Button
+AimSec:AddButton({
+    Name = "Refresh Pool",
+    Desc = "Instantly clears and resets all targeting caches.",
+    Callback = function()
+        -- logic
+    end
+})
+
+-- Paragraph & Labels
+AimSec:AddParagraph({
+    Title = "Notice",
+    Content = "All features run asynchronously without lag spikes."
+})
+AimSec:AddLabel("Status: Active")
+
+-- Divider
+AimSec:AddDivider()
+
+-- Dual-Widget Row (Side-by-side grouped elements)
+local row = AimSec:AddRow()
+row:AddToggle({ Name = "Auto Parry", Default = false, Callback = function(s) end })
+row:AddKeybind({ Name = "Parry Key", Default = Enum.KeyCode.F, Callback = function(k) end })
+```
+
+### 4. Notifications & Toasts
+```luau
+Liyhub:Notify({
+    Title = "Liyhub",
+    Content = "Script loaded cleanly.",
+    Duration = 3,
+    Type = "Success" -- "Success" | "Info" | "Warning"
 })
 ```
 
 ---
 
-## 🌐 Cara Kerja 2: Multi-Game Auto-Selector Hub
+## ⚡ Direct WindUI Engine Access
 
-Jalankan satu loadstring yang otomatis mendeteksi game yang sedang dimainkan:
+You can also bypass the wrapper and directly interact with raw WindUI features anytime:
 
 ```luau
-local Liyhub = loadstring(game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/LiyhubUI.bundle.luau"))()
-local PlaceId = game.PlaceId
+local WindUI = Liyhub.WindUI
 
-if PlaceId == 6068496214 then
-    -- JAILBREAK
-    local Window = Liyhub:CreateWindow({ Title = "Liyhub | Jailbreak" })
-    local Tab = Window:AddTab("Auto Rob", "💰")
-    -- Script Jailbreak...
-
-elseif PlaceId == 2753915549 or PlaceId == 4442272183 then
-    -- BLOX FRUITS
-    local Window = Liyhub:CreateWindow({ Title = "Liyhub | Blox Fruits" })
-    local Tab = Window:AddTab("Auto Farm", "⚔️")
-    -- Script Blox Fruits...
-
-else
-    -- UNIVERSAL FALLBACK
-    local Window = Liyhub:CreateWindow({ Title = "Liyhub | Universal" })
-    local Tab = Window:AddTab("Movement", "⚡")
-    -- Script Universal...
-end
+-- Native Popup
+WindUI:Popup({
+    Title = "Welcome",
+    Content = "Enjoying LiyhubUI with WindUI engine!",
+    Buttons = {
+        { Title = "Got it", Variant = "Primary" }
+    }
+})
 ```
 
 ---
 
-## 🛠️ Complete 10-Component Suite
+## 📱 Mobile Support & Draggable Pin Button
 
-| Komponen | Sintaks Panggilan |
-|---|---|
-| **Toggle** | `Section:AddToggle({ Name = "...", Default = false, Callback = function(v) end })` |
-| **Slider** | `Section:AddSlider({ Name = "...", Min = 0, Max = 100, Default = 50, Callback = function(v) end })` |
-| **Button** | `Section:AddButton({ Name = "...", Callback = function() end })` |
-| **Dropdown** | `Section:AddDropdown({ Name = "...", Options = {...}, Default = "...", Callback = function(opt) end })` |
-| **MultiDropdown** | `Section:AddMultiDropdown({ Name = "...", Options = {...}, Default = {...}, Callback = function(list) end })` |
-| **ColorPicker** | `Section:AddColorPicker({ Name = "...", Default = Color3.fromRGB(...), Callback = function(c) end })` |
-| **Keybind** | `Section:AddKeybind({ Name = "...", Default = Enum.KeyCode.RightControl, Callback = function(k) end })` |
-| **Textbox / Input** | `Section:AddTextbox({ Name = "...", Placeholder = "...", Callback = function(t) end })` (atau `AddInput`) |
-| **Label** | `Section:AddLabel("Status: Active")` |
-| **Paragraph** | `Section:AddParagraph({ Title = "...", Content = "..." })` |
-| **Divider** | `Section:AddDivider()` |
-| **SubSection** | `Section:AddSubSection("Combat Settings")` |
-| **Toast Notify**| `Liyhub:Notify({ Title = "...", Content = "...", Duration = 2, Type = "Success" })` |
-
----
-
-## 📱 Mobile Pin Tab (Floating Toggle)
-
-Khusus pengguna mobile atau touch screen (dan desktop):
-- **Top Center Dynamic Island**: Posisi default berada di bagian atas tengah layar (`UDim2.new(0.5, -67, 0, 14)`), bebas 100% dari benturan dengan Roblox Unibar, Logo Roblox, Chat bubble, menu hamburger, joystick analog, atau tombol lompat.
-- **Position Presets di Settings**: Tersedia pilihan posisi 1-klik di tab Settings:
-  - `Top Center (Default)` (`0.5, -67, 0, 14`)
-  - `Left Middle` (`0, 14, 0.45, -17`)
-  - `Right Middle` (`1, -148, 0.45, -17`)
-  - `Bottom Center` (`0.5, -67, 1, -48`)
-- **Drag & Auto-Save**: Pengguna bebas menggeser floating pill ke koordinat mana pun di layar. Saat dilepas, koordinat langsung otomatis disimpan ke `ConfigData["_Liyhub_PinPos"]` dan diingat saat script dieksekusi ulang.
-- **Drag & Tap Separation**: Menggeser layar tidak akan memicu klik (threshold > 8px), sehingga aman digeser ke mana saja tanpa membuka/menutup menu secara tidak sengaja.
-- **Viewport Clamped**: Tombol dibatasi secara otomatis agar tidak pernah terlempar keluar dari batas layar.
-- **TopBar Pin Button (📌)**: Tekan tombol pin di header untuk mem-pin floating pill di layar secara permanen, atau biarkan floating pill muncul saat jendela diminimalkan.
-- **API Methods**:
-  ```luau
-  Window:SetPinPosition(UDim2.new(0.5, -67, 0, 14)) -- Ubah posisi pin tab via script
-  local pos = Window:GetPinPosition()                -- Ambil posisi pin tab saat ini
-  ```
-
----
-
-## ⌨️ Customizable UI Toggle (Show / Hide)
-
-Pengguna dapat menentukan sendiri tombol atau cara yang ingin digunakan untuk membuka dan menutup menu:
-
-1. **Inisialisasi Custom Toggle Key**:
-   ```luau
-   local Window = Liyhub:CreateWindow({
-       Title = "Liyhub",
-       ToggleKey = Enum.KeyCode.RightControl, -- Default key (bisa RightShift, Insert, F4, dll)
-   })
-   ```
-
-2. **Pengaturan Interaktif di Tab Settings**:
-   - Di tab **Settings**, buka kartu **UI Show / Hide Keybind**.
-   - Klik tombol keybind (misal `[RightControl]`), teks akan berubah menjadi `[Press Any Key]`.
-   - Tekan sembarang tombol di keyboard (misal `Insert`, `RightShift`, `V`, `F3`, `LeftAlt`, dll).
-   - Tombol toggle baru langsung aktif dan **otomatis tersimpan ke config** (`ConfigData["_Liyhub_ToggleKey"]`).
-   - Terdapat tombol preset instan: `RightControl`, `RightShift`, `Insert`, `LeftAlt`, `F4`.
-
-3. **Programmatic API Control**:
-   ```luau
-   Window:SetToggleKey(Enum.KeyCode.Insert) -- Ganti keybind via script
-   local currentKey = Window:GetToggleKey() -- Ambil KeyCode yang sedang aktif
-   Window:Toggle()                          -- Buka/tutup UI secara manual
-   Window:SetPinVisible(true)               -- Munculkan floating pin pill
-   ```
-
----
-
-## 💾 SpeedHub / Chloe X Configuration System
-
-Sistem penyimpanan konfigurasi otomatis ke file `.json`:
-
-1. **Auto-Save & Auto-Load Komponen**:
-   - Setiap Toggle, Slider, Dropdown, MultiDropdown, Textbox/Input, ColorPicker, dan Keybind otomatis tersimpan ke `ConfigData` saat nilainya diubah oleh user.
-   - Saat script dieksekusi ulang, nilai yang tersimpan akan otomatis dimuat ke komponen UI.
-
-2. **Version Control & Auto-Reset**:
-   - Tentukan versi konfigurasi di `CreateWindow`:
-     ```luau
-     local Window = Liyhub:CreateWindow({
-         Title = "Liyhub |",
-         Footer = "Auto Farm",
-         Version = 1,
-     })
-     ```
-   - Jika `Version` dinaikkan (misal dari `1` ke `2`), konfigurasi lama akan di-reset otomatis untuk mencegah konflik data.
-
-3. **Custom Global Data & Shorthand**:
-   - Akses tabel `ConfigData` kapan saja dari mana saja:
-     ```luau
-     ConfigData.WebhookURL = "https://discord.com/api/webhooks/..."
-     ConfigData.PlayerName = "User123"
-     SaveConfig() -- Simpan manual ke file lokal
-     ```
-   - Shorthand notifikasi cepat:
-     ```luau
-     chloex("Window loaded!")
-     than("Farming started!")
-     ```
-
----
-
-## 🛡️ Anti-Detection & Security Features
-- **Stealth Container**: Otomatis mendeteksi `gethui()`, `syn.protect_gui`, dan `protectgui` agar GUI tidak terdeteksi oleh `DescendantAdded` game.
-- **Randomized GUID Naming**: Menghindari pemindaian nama UI statis oleh anticheat.
-- **Single-Instance Debounce**: Otomatis membersihkan sesi sebelumnya (`_LIYHUB_CLEANUP`) agar tidak terjadi duplikasi GUI saat dieksekusi berkali-kali.
-- **Procedural Vector Mark**: Logo Liyhub digambar tajam via Luau primitives (`Frame`, `UICorner`, `UIGradient`) tanpa aset eksternal dan bebas moderasi Roblox.
+- Built into WindUI via `OpenButton`.
+- Fully draggable floating pill widget.
+- Automatically handles touch vs mouse inputs without accidental clicks.
