@@ -2231,25 +2231,28 @@ function Fluent:CreateWindow(o)
     function w:ToggleInterface() self:Toggle() end
 
     function w:Watermark(watermarkCfg)
-        -- Top-right contiguous capsule pill HUD (Image 2 exact match)
+        if w.__WatermarkCache then
+            return w.__WatermarkCache
+        end
+
         local wmPill = Instance.new("Frame")
         wmPill.Name = "LiyhubWatermark"
         wmPill.AnchorPoint = Vector2.new(1, 0)
-        wmPill.Position = UDim2.new(1, -20, 0, 16)
-        wmPill.Size = UDim2.fromOffset(0, 32)
-        wmPill.AutomaticSize = Enum.AutomaticSize.X
+        wmPill.Position = UDim2.new(1, -14, 0, 12)
+        wmPill.Size = UDim2.fromOffset(120, 30)
         wmPill.BackgroundColor3 = Color3.fromRGB(15, 17, 24)
         wmPill.BackgroundTransparency = 0.15
+        wmPill.BorderSizePixel = 0
         wmPill.ClipsDescendants = false
         wmPill.ZIndex = 500
         wmPill.Parent = gui
-        corner(wmPill, 16)
-        stroke(wmPill, Color3.fromRGB(255, 255, 255), 0.72)
+        corner(wmPill, 15)
+        stroke(wmPill, Color3.fromRGB(255, 255, 255), 0.75)
 
-        -- Top Cyan Glow Line (Centered highlight, NO scale to avoid AutomaticSize stretch)
+        -- Top Cyan Glow Line
         local topGlow = Instance.new("Frame")
         topGlow.Name = "TopGlow"
-        topGlow.Size = UDim2.fromOffset(0, 2)
+        topGlow.Size = UDim2.fromOffset(60, 2)
         topGlow.Position = UDim2.new(0.5, 0, 0, 0)
         topGlow.AnchorPoint = Vector2.new(0.5, 0)
         topGlow.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
@@ -2268,51 +2271,47 @@ function Fluent:CreateWindow(o)
         })
         glowGrad.Parent = topGlow
 
-        -- Inner Content Container (isolated from TopGlow to prevent scale recursion)
-        local content = Instance.new("Frame")
-        content.Name = "Content"
-        content.BackgroundTransparency = 1
-        content.Size = UDim2.fromOffset(0, 32)
-        content.AutomaticSize = Enum.AutomaticSize.X
-        content.ZIndex = 503
-        content.Parent = wmPill
-        pad(content, 4, 18, 4, 18)
-
         local wmLay = Instance.new("UIListLayout")
         wmLay.FillDirection = Enum.FillDirection.Horizontal
         wmLay.VerticalAlignment = Enum.VerticalAlignment.Center
-        wmLay.Padding = UDim.new(0, 16)
+        wmLay.HorizontalAlignment = Enum.HorizontalAlignment.Left
         wmLay.SortOrder = Enum.SortOrder.LayoutOrder
-        wmLay.Parent = content
+        wmLay.Padding = UDim.new(0, 0)
+        wmLay.Parent = wmPill
 
-        content:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-            local w = content.AbsoluteSize.X
-            if w > 0 then
-                topGlow.Size = UDim2.fromOffset(math.max(10, math.floor(w * 0.7)), 2)
-            end
-        end)
+        pad(wmPill, 0, 12, 0, 12)
+
+        local function updatePillWidth()
+            local contentW = wmLay.AbsoluteContentSize.X
+            local totalW = math.max(60, contentW + 24)
+            wmPill.Size = UDim2.fromOffset(totalW, 30)
+            topGlow.Size = UDim2.fromOffset(math.max(10, math.floor(totalW * 0.65)), 2)
+        end
+
+        wmLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updatePillWidth)
 
         local wm = { Holder = wmPill }
+        w.__WatermarkCache = wm
+
         function wm:AddBlock(iconName, textVal)
             local blockFrame = Instance.new("Frame")
             blockFrame.Name = "Block_" .. tostring(textVal or "Block")
             blockFrame.BackgroundTransparency = 1
-            blockFrame.Size = UDim2.fromOffset(0, 22)
-            blockFrame.AutomaticSize = Enum.AutomaticSize.X
+            blockFrame.BorderSizePixel = 0
+            blockFrame.Size = UDim2.fromOffset(40, 30)
             blockFrame.ZIndex = 504
-            blockFrame.Parent = content
-
-            local rowLay = Instance.new("UIListLayout")
-            rowLay.FillDirection = Enum.FillDirection.Horizontal
-            rowLay.VerticalAlignment = Enum.VerticalAlignment.Center
-            rowLay.Padding = UDim.new(0, 6)
-            rowLay.Parent = blockFrame
+            blockFrame.Parent = wmPill
 
             local iType, iVal = resolveIcon(iconName)
             local ico = nil
+            local hasIcon = (iType ~= nil)
+
             if iType == "image" then
                 ico = Instance.new("ImageLabel")
+                ico.Name = "Icon"
                 ico.Size = UDim2.fromOffset(14, 14)
+                ico.Position = UDim2.new(0, 6, 0.5, 0)
+                ico.AnchorPoint = Vector2.new(0, 0.5)
                 ico.BackgroundTransparency = 1
                 ico.Image = iVal
                 ico.ImageColor3 = Color3.fromRGB(0, 162, 255)
@@ -2321,7 +2320,10 @@ function Fluent:CreateWindow(o)
                 ico.Parent = blockFrame
             elseif iType == "text" then
                 local em = Instance.new("TextLabel")
+                em.Name = "Emoji"
                 em.Size = UDim2.fromOffset(14, 14)
+                em.Position = UDim2.new(0, 6, 0.5, 0)
+                em.AnchorPoint = Vector2.new(0, 0.5)
                 em.BackgroundTransparency = 1
                 em.Text = iVal
                 em.TextSize = 12
@@ -2329,21 +2331,43 @@ function Fluent:CreateWindow(o)
                 em.Font = Enum.Font.GothamMedium
                 em.ZIndex = 505
                 em.Parent = blockFrame
+                ico = em
             end
 
-            local lbl = text(blockFrame, tostring(textVal or ""), 11, Fluent.CurrentTheme.Text)
-            lbl.Size = UDim2.fromOffset(0, 20)
-            lbl.AutomaticSize = Enum.AutomaticSize.X
+            local textStartX = hasIcon and 24 or 8
+            local lbl = Instance.new("TextLabel")
+            lbl.Name = "Label"
+            lbl.BackgroundTransparency = 1
+            lbl.Position = UDim2.new(0, textStartX, 0.5, 0)
+            lbl.AnchorPoint = Vector2.new(0, 0.5)
+            lbl.Size = UDim2.fromOffset(20, 20)
             lbl.Font = Enum.Font.GothamBold
+            lbl.TextSize = 12
+            lbl.TextColor3 = Color3.fromRGB(220, 225, 235)
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.Text = tostring(textVal or "")
             lbl.ZIndex = 505
+            lbl.Parent = blockFrame
+
+            local function updateBlockSize()
+                local sz = TextService:GetTextSize(lbl.Text, lbl.TextSize, lbl.Font, Vector2.new(1000, 30))
+                lbl.Size = UDim2.fromOffset(sz.X + 2, 20)
+                local blockW = textStartX + sz.X + 12
+                blockFrame.Size = UDim2.fromOffset(blockW, 30)
+                updatePillWidth()
+            end
+
+            updateBlockSize()
 
             local blockBtn = nil
-
             local blockObj = { Frame = blockFrame, Label = lbl, Icon = ico }
+
             function blockObj:SetText(t)
                 lbl.Text = tostring(t or "")
+                updateBlockSize()
             end
             blockObj.Text = blockObj.SetText
+
             function blockObj:Input(cb)
                 if not blockBtn then
                     blockBtn = Instance.new("TextButton")
@@ -2358,6 +2382,7 @@ function Fluent:CreateWindow(o)
                     if type(cb) == "function" then cb() end
                 end)
             end
+
             return blockObj
         end
         return wm
