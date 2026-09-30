@@ -104,12 +104,16 @@ local function stroke(p, c, tr)
     return x
 end
 
-local function pad(p, n)
+local function pad(p, topOrAll, right, bottom, left)
     local x = Instance.new("UIPadding")
-    x.PaddingTop = UDim.new(0, n or 8)
-    x.PaddingBottom = UDim.new(0, n or 8)
-    x.PaddingLeft = UDim.new(0, n or 8)
-    x.PaddingRight = UDim.new(0, n or 8)
+    local t = topOrAll or 8
+    local r = right or t
+    local b = bottom or t
+    local l = left or r
+    x.PaddingTop = UDim.new(0, t)
+    x.PaddingRight = UDim.new(0, r)
+    x.PaddingBottom = UDim.new(0, b)
+    x.PaddingLeft = UDim.new(0, l)
     x.Parent = p
     return x
 end
@@ -414,6 +418,12 @@ local function addSection(tab, titleText, iconOptional)
 
     local function resize()
         holder.Size = UDim2.new(1, 0, 0, list.AbsoluteContentSize.Y + 16)
+        if tab and tab.Page then
+            local pl = tab.Page:FindFirstChildOfClass("UIListLayout")
+            if pl then
+                tab.Page.CanvasSize = UDim2.new(0, 0, 0, pl.AbsoluteContentSize.Y + 36)
+            end
+        end
     end
     list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
 
@@ -690,23 +700,35 @@ local function addSection(tab, titleText, iconOptional)
         optionsContainer.Position = UDim2.new(0, 10, 0, headerH + 2)
         optionsContainer.Size = UDim2.new(1, -20, 0, optHeight)
         optionsContainer.Visible = false
+        optionsContainer.ClipsDescendants = true
+        optionsContainer.ZIndex = 10
         optionsContainer.Parent = f
         corner(optionsContainer, 7)
         stroke(optionsContainer, Fluent.CurrentTheme.Border, 0.4)
 
         local sc = Instance.new("ScrollingFrame")
+        sc.Name = "DropdownScroll"
         sc.BackgroundTransparency = 1
         sc.BorderSizePixel = 0
         sc.Size = UDim2.fromScale(1, 1)
-        sc.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        sc.ScrollBarThickness = 2
-        sc.ScrollBarImageTransparency = 0.5
+        sc.CanvasSize = UDim2.new(0, 0, 0, 0)
+        sc.AutomaticCanvasSize = Enum.AutomaticSize.None
+        sc.ScrollingDirection = Enum.ScrollingDirection.Y
+        sc.ScrollBarThickness = 4
+        sc.ScrollBarImageTransparency = 0.35
+        sc.ElasticBehavior = Enum.ElasticBehavior.Always
+        sc.ZIndex = 11
         sc.Parent = optionsContainer
-        pad(sc, 5)
+        pad(sc, 5, 6, 8, 5)
 
         local lay = Instance.new("UIListLayout")
         lay.Padding = UDim.new(0, 3)
         lay.Parent = sc
+
+        local function updateScCanvas()
+            sc.CanvasSize = UDim2.new(0, 0, 0, lay.AbsoluteContentSize.Y + 12)
+        end
+        lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateScCanvas)
 
         local optionRows = {}
 
@@ -813,6 +835,7 @@ local function addSection(tab, titleText, iconOptional)
 
                 table.insert(optionRows, row)
             end
+            updateScCanvas()
         end
 
         local function toggleOpen(forceState)
@@ -1691,19 +1714,27 @@ function Fluent:CreateWindow(o)
     sidebar.BackgroundTransparency = 0.2
     sidebar.BorderSizePixel = 0
     sidebar.Size = UDim2.new(1, 0, 1, -56)
-    sidebar.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    sidebar.ScrollBarThickness = 2
-    sidebar.ScrollBarImageTransparency = 0.55
+    sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
+    sidebar.AutomaticCanvasSize = Enum.AutomaticSize.None
+    sidebar.ScrollingDirection = Enum.ScrollingDirection.Y
+    sidebar.ScrollBarThickness = 3
+    sidebar.ScrollBarImageTransparency = 0.5
+    sidebar.ElasticBehavior = Enum.ElasticBehavior.Always
     sidebar.ZIndex = 3
     sidebar.Parent = sidebarContainer
     corner(sidebar, 11)
     stroke(sidebar, self.CurrentTheme.Border, 0.35)
-    pad(sidebar, 7)
+    pad(sidebar, 7, 7, 12, 7)
 
     local sl = Instance.new("UIListLayout")
     sl.Padding = UDim.new(0, 5)
     sl.SortOrder = Enum.SortOrder.LayoutOrder
     sl.Parent = sidebar
+
+    local function updateSidebarCanvas()
+        sidebar.CanvasSize = UDim2.new(0, 0, 0, sl.AbsoluteContentSize.Y + 14)
+    end
+    sl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateSidebarCanvas)
 
     -- Bottom-Left Neverlose User Profile Card
     local profileCard = Instance.new("Frame")
@@ -1994,16 +2025,20 @@ function Fluent:CreateWindow(o)
         label.Font = Enum.Font.GothamBold
 
         local page = Instance.new("ScrollingFrame")
+        page.Name = "Tab_" .. t.Title
         page.BackgroundTransparency = 1
         page.BorderSizePixel = 0
         page.Size = UDim2.fromScale(1, 1)
-        page.ScrollBarThickness = 3
-        page.ScrollBarImageTransparency = 0.55
-        page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        page.CanvasSize = UDim2.new(0, 0, 0, 0)
+        page.AutomaticCanvasSize = Enum.AutomaticSize.None
+        page.ScrollingDirection = Enum.ScrollingDirection.Y
+        page.ScrollBarThickness = 4
+        page.ScrollBarImageTransparency = 0.4
+        page.ElasticBehavior = Enum.ElasticBehavior.Always
         page.Visible = false
         page.ZIndex = 2
         page.Parent = pages
-        pad(page, 4)
+        pad(page, 4, 6, 28, 4)
 
         local pl = Instance.new("UIListLayout")
         pl.Padding = UDim.new(0, 8)
@@ -2014,6 +2049,11 @@ function Fluent:CreateWindow(o)
         t.Accent = accent
         t.Label = label
         t.IconElement = iconElement
+
+        local function updatePageCanvas()
+            page.CanvasSize = UDim2.new(0, 0, 0, pl.AbsoluteContentSize.Y + 36)
+        end
+        pl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updatePageCanvas)
 
         tb.MouseEnter:Connect(function()
             if self.ActiveTab ~= t then
