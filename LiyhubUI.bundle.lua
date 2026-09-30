@@ -2259,6 +2259,17 @@ function Fluent:CreateWindow(o)
                 self.IconElement.ImageColor3 = Fluent.CurrentTheme.Accent
             end
             self.Window.ActiveTab = self
+            if (self.Title == "Settings" or self.Title == "settings") then
+                local activeProf = self.Window.ActiveConfigProfile or Fluent.ActiveConfigProfile
+                if activeProf and activeProf ~= "" then
+                    if self.Window._profileInput and self.Window._profileInput.SetValue then
+                        self.Window._profileInput:SetValue(activeProf, false)
+                    end
+                    if self.Window._profileDropdown and self.Window._profileDropdown.SetValue then
+                        self.Window._profileDropdown:SetValue(activeProf, false)
+                    end
+                end
+            end
         end
 
         function t:AddSection(secNameOrCfg, iconOptional)
@@ -2331,14 +2342,21 @@ function Fluent:CreateWindow(o)
         end
 
         local configsList = Fluent:GetConfigs()
-        local currentProfile = configsList[1] or "default"
+        local currentProfile = self.ActiveConfigProfile or Fluent.ActiveConfigProfile or configsList[1] or "default"
+        self.ActiveConfigProfile = currentProfile
+        Fluent.ActiveConfigProfile = currentProfile
 
         local profileInput = sec:AddTextbox({
             Name = "Profile Name",
             Placeholder = "Profile name (e.g. default)...",
             Default = currentProfile,
+            Flag = "__Liyhub_ProfileName",
             Callback = function(txt)
-                if txt and txt ~= "" then currentProfile = txt end
+                if txt and txt ~= "" then
+                    currentProfile = txt
+                    self.ActiveConfigProfile = txt
+                    Fluent.ActiveConfigProfile = txt
+                end
             end
         })
 
@@ -2346,13 +2364,21 @@ function Fluent:CreateWindow(o)
             Name = "Select Saved Profile",
             Options = configsList,
             Default = currentProfile,
+            Flag = "__Liyhub_ProfileSelect",
             Callback = function(choice)
                 currentProfile = choice
+                self.ActiveConfigProfile = choice
+                Fluent.ActiveConfigProfile = choice
                 if profileInput and profileInput.SetValue then
-                    profileInput:SetValue(choice)
+                    profileInput:SetValue(choice, false)
                 end
             end
         })
+
+        self._profileInput = profileInput
+        self._profileDropdown = profileDropdown
+        Fluent._profileInput = profileInput
+        Fluent._profileDropdown = profileDropdown
 
         local row1 = sec:AddRow()
         row1:AddButton({
@@ -2364,12 +2390,21 @@ function Fluent:CreateWindow(o)
                     profileDropdown:SetOptions(updated, currentProfile)
                     profileDropdown:Close()
                 end
+                if profileInput and profileInput.SetValue then
+                    profileInput:SetValue(currentProfile, false)
+                end
             end
         })
         row1:AddButton({
             Name = "Load Config",
             Callback = function()
                 Fluent:LoadConfig(currentProfile)
+                if profileInput and profileInput.SetValue then
+                    profileInput:SetValue(currentProfile, false)
+                end
+                if profileDropdown and profileDropdown.SetValue then
+                    profileDropdown:SetValue(currentProfile, false)
+                end
             end
         })
 
@@ -2380,12 +2415,14 @@ function Fluent:CreateWindow(o)
                 Fluent:DeleteConfig(currentProfile)
                 local updated = Fluent:GetConfigs()
                 currentProfile = updated[1] or "default"
+                self.ActiveConfigProfile = currentProfile
+                Fluent.ActiveConfigProfile = currentProfile
                 if profileDropdown and profileDropdown.SetOptions then
                     profileDropdown:SetOptions(updated, currentProfile)
                     profileDropdown:Close()
                 end
                 if profileInput and profileInput.SetValue then
-                    profileInput:SetValue(currentProfile)
+                    profileInput:SetValue(currentProfile, false)
                 end
             end
         })
@@ -2395,13 +2432,15 @@ function Fluent:CreateWindow(o)
                 local updated = Fluent:GetConfigs()
                 if not table.find(updated, currentProfile) then
                     currentProfile = updated[1] or "default"
+                    self.ActiveConfigProfile = currentProfile
+                    Fluent.ActiveConfigProfile = currentProfile
                 end
                 if profileDropdown and profileDropdown.SetOptions then
                     profileDropdown:SetOptions(updated, currentProfile)
                     profileDropdown:Close()
                 end
                 if profileInput and profileInput.SetValue then
-                    profileInput:SetValue(currentProfile)
+                    profileInput:SetValue(currentProfile, false)
                 end
                 Fluent:Notify({ Title = "Config Manager", Content = "Profiles refreshed.", Type = "Info", Duration = 1.5 })
             end
@@ -2544,18 +2583,39 @@ end
 
 function Fluent:SaveConfig(name)
     name = (name and name ~= "") and name or "default"
+    self.ActiveConfigProfile = name
+    self.CurrentProfile = name
+    if self._profileInput and self._profileInput.SetValue then
+        self._profileInput:SetValue(name, false)
+    end
+    if self._profileDropdown and self._profileDropdown.SetValue then
+        self._profileDropdown:SetValue(name, false)
+    end
+
     ensureConfigDir()
     local data = {
         _version = 1,
         _placeId = game.PlaceId,
         _timestamp = os.time(),
+        _profile = name,
         Flags = {}
     }
+    local ignoredFlags = {
+        ["Profile Name"] = true,
+        ["Select Saved Profile"] = true,
+        ["__Liyhub_ProfileName"] = true,
+        ["__Liyhub_ProfileSelect"] = true,
+        ["Menu Keybind"] = true,
+    }
     for flag, val in pairs(self.Flags) do
-        data.Flags[flag] = serializeValue(val)
+        local fStr = tostring(flag)
+        if not ignoredFlags[fStr] and not fStr:match("^__Liyhub_") then
+            data.Flags[flag] = serializeValue(val)
+        end
     end
     for flag, opt in pairs(self.Options) do
-        if data.Flags[flag] == nil and opt and type(opt.GetValue) == "function" then
+        local fStr = tostring(flag)
+        if not ignoredFlags[fStr] and not fStr:match("^__Liyhub_") and data.Flags[flag] == nil and opt and type(opt.GetValue) == "function" then
             local val = opt:GetValue()
             if val ~= nil then
                 data.Flags[flag] = serializeValue(val)
@@ -2582,6 +2642,8 @@ end
 
 function Fluent:LoadConfig(name)
     name = (name and name ~= "") and name or "default"
+    self.ActiveConfigProfile = name
+    self.CurrentProfile = name
     ensureConfigDir()
     local raw = nil
     local path = getProfilePath(name)
@@ -2615,15 +2677,33 @@ function Fluent:LoadConfig(name)
         return false
     end
 
+    local ignoredFlags = {
+        ["Profile Name"] = true,
+        ["Select Saved Profile"] = true,
+        ["__Liyhub_ProfileName"] = true,
+        ["__Liyhub_ProfileSelect"] = true,
+        ["Menu Keybind"] = true,
+    }
+
     for flag, rawVal in pairs(data.Flags) do
-        local val = deserializeValue(rawVal)
-        self.Flags[flag] = val
-        local opt = self.Options[flag]
-        if opt and opt.SetValue then
-            pcall(function() opt:SetValue(val, true) end)
-        elseif opt and opt.Set then
-            pcall(function() opt:Set(val, true) end)
+        local fStr = tostring(flag)
+        if not ignoredFlags[fStr] and not fStr:match("^__Liyhub_") then
+            local val = deserializeValue(rawVal)
+            self.Flags[flag] = val
+            local opt = self.Options[flag]
+            if opt and opt.SetValue then
+                pcall(function() opt:SetValue(val, true) end)
+            elseif opt and opt.Set then
+                pcall(function() opt:Set(val, true) end)
+            end
         end
+    end
+
+    if self._profileInput and self._profileInput.SetValue then
+        self._profileInput:SetValue(name, false)
+    end
+    if self._profileDropdown and self._profileDropdown.SetValue then
+        self._profileDropdown:SetValue(name, false)
     end
 
     self:Notify({
