@@ -178,15 +178,42 @@ local function drag(handle, target)
 end
 
 local function resolveLogoAsset()
-    local logoAsset = "rbxasset://textures/liyhub_logo.png"
-    if typeof(getcustomasset) == "function" then
-        pcall(function()
-            if typeof(isfile) == "function" and isfile("liyhub_logo.png") then
+    local logoAsset = nil
+
+    -- 1. Executor environment: auto-download from GitHub raw & load via getcustomasset
+    pcall(function()
+        if typeof(getcustomasset) == "function" and typeof(writefile) == "function" and typeof(isfile) == "function" then
+            if not isfile("liyhub_logo.png") then
+                local ok, data = pcall(function()
+                    return game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/liyhub_logo.png")
+                end)
+                if ok and data and #data > 0 then
+                    writefile("liyhub_logo.png", data)
+                end
+            end
+            if isfile("liyhub_logo.png") then
                 logoAsset = getcustomasset("liyhub_logo.png")
             end
-        end)
+        end
+    end)
+
+    if logoAsset and logoAsset ~= "" then
+        return logoAsset
     end
-    return logoAsset
+
+    -- 2. Studio / Local content fallback
+    pcall(function()
+        if game:GetService("RunService"):IsStudio() then
+            logoAsset = "rbxasset://textures/liyhub_logo.png"
+        end
+    end)
+
+    if logoAsset and logoAsset ~= "" then
+        return logoAsset
+    end
+
+    -- 3. Guaranteed Roblox Cloud Asset ID fallback
+    return "rbxassetid://123085513549252"
 end
 
 local LucideIcons = {
