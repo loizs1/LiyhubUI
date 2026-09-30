@@ -509,7 +509,9 @@ local function addSection(tab, titleText, iconOptional)
         local cfg = o or {}
         if type(flagOrCfg) == "table" then
             cfg = flagOrCfg
-            flag = cfg.Name or cfg.Title or "Toggle"
+            flag = cfg.Flag or cfg.Name or cfg.Title or "Toggle"
+        elseif type(o) == "table" and o.Flag then
+            flag = o.Flag
         end
 
         local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, 48, cfg.Icon)
@@ -549,7 +551,9 @@ local function addSection(tab, titleText, iconOptional)
         local cfg = o or {}
         if type(flagOrCfg) == "table" then
             cfg = flagOrCfg
-            flag = cfg.Name or cfg.Title or "Slider"
+            flag = cfg.Flag or cfg.Name or cfg.Title or "Slider"
+        elseif type(o) == "table" and o.Flag then
+            flag = o.Flag
         end
 
         local hasDesc = (cfg.Description or cfg.Desc) ~= nil
@@ -671,7 +675,9 @@ local function addSection(tab, titleText, iconOptional)
         local cfg = o or {}
         if type(flagOrCfg) == "table" then
             cfg = flagOrCfg
-            flag = cfg.Name or cfg.Title or "Dropdown"
+            flag = cfg.Flag or cfg.Name or cfg.Title or "Dropdown"
+        elseif type(o) == "table" and o.Flag then
+            flag = o.Flag
         end
 
         local isMulti = cfg.Multi == true
@@ -746,7 +752,7 @@ local function addSection(tab, titleText, iconOptional)
         pillLabel.Text = getSummary()
 
         -- Expandable Options Container
-        local optHeight = math.min(180, #values * 32 + 8)
+        local optHeight = math.clamp(#values * 32 + 8, 36, 180)
         local optionsContainer = Instance.new("Frame")
         optionsContainer.Name = "OptionsContainer"
         optionsContainer.BackgroundColor3 = Color3.fromRGB(18, 22, 32)
@@ -784,14 +790,30 @@ local function addSection(tab, titleText, iconOptional)
         lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateScCanvas)
 
         local optionRows = {}
+        local isOpen = false
 
         local function buildOptions()
-            for _, r in ipairs(optionRows) do r:Destroy() end
+            for _, r in ipairs(optionRows) do pcall(function() r:Destroy() end) end
             optionRows = {}
+
+            if #values == 0 then
+                local emptyRow = Instance.new("Frame")
+                emptyRow.BackgroundTransparency = 1
+                emptyRow.Size = UDim2.new(1, 0, 0, 26)
+                emptyRow.ZIndex = 12
+                emptyRow.Parent = sc
+                local emptyLbl = text(emptyRow, "None available", 11, Fluent.CurrentTheme.SubText)
+                emptyLbl.Size = UDim2.fromScale(1, 1)
+                emptyLbl.Position = UDim2.fromOffset(8, 0)
+                emptyLbl.ZIndex = 13
+                table.insert(optionRows, emptyRow)
+                updateScCanvas()
+                return
+            end
 
             for _, v in ipairs(values) do
                 local valStr = tostring(v)
-                local isChecked = isMulti and selected[v] == true or (not isMulti and current == v)
+                local isChecked = isMulti and selected[v] == true or (not isMulti and tostring(current) == valStr)
 
                 local row = Instance.new("TextButton")
                 row.Name = "Option_" .. valStr
@@ -800,6 +822,7 @@ local function addSection(tab, titleText, iconOptional)
                 row.BackgroundColor3 = isChecked and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface2
                 row.BackgroundTransparency = isChecked and 0.75 or 0.6
                 row.Size = UDim2.new(1, 0, 0, 28)
+                row.ZIndex = 12
                 row.Parent = sc
                 corner(row, 6)
 
@@ -807,6 +830,7 @@ local function addSection(tab, titleText, iconOptional)
                 rowLabel.Position = UDim2.fromOffset(10, 0)
                 rowLabel.Size = UDim2.new(1, -40, 1, 0)
                 rowLabel.Font = Enum.Font.GothamBold
+                rowLabel.ZIndex = 13
 
                 if isMulti then
                     -- Checkbox square
@@ -816,6 +840,7 @@ local function addSection(tab, titleText, iconOptional)
                     checkSquare.Position = UDim2.new(1, -22, 0.5, -8)
                     checkSquare.BackgroundColor3 = isChecked and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface
                     checkSquare.BackgroundTransparency = isChecked and 0.2 or 0.5
+                    checkSquare.ZIndex = 13
                     checkSquare.Parent = row
                     corner(checkSquare, 4)
                     stroke(checkSquare, Fluent.CurrentTheme.Accent, isChecked and 0.2 or 0.6)
@@ -827,6 +852,7 @@ local function addSection(tab, titleText, iconOptional)
                     checkIco.Image = "rbxassetid://10709790644"
                     checkIco.ImageColor3 = Color3.fromRGB(255, 255, 255)
                     checkIco.Visible = isChecked
+                    checkIco.ZIndex = 14
                     checkIco.Parent = checkSquare
 
                     row.MouseButton1Click:Connect(function()
@@ -857,6 +883,7 @@ local function addSection(tab, titleText, iconOptional)
                     checkIco.Image = "rbxassetid://10709790644"
                     checkIco.ImageColor3 = Fluent.CurrentTheme.Accent
                     checkIco.Visible = isChecked
+                    checkIco.ZIndex = 13
                     checkIco.Parent = row
 
                     row.MouseButton1Click:Connect(function()
@@ -867,6 +894,7 @@ local function addSection(tab, titleText, iconOptional)
 
                         -- Close after selection
                         optionsContainer.Visible = false
+                        isOpen = false
                         tween(chevron, 0.15, { Rotation = 0 })
                         f.Size = UDim2.new(1, 0, 0, headerH)
                         buildOptions()
@@ -930,20 +958,26 @@ local function addSection(tab, titleText, iconOptional)
                     Fluent.Flags[flag] = v
                 end
                 pillLabel.Text = getSummary()
-                if isOpen then buildOptions() end
+                buildOptions()
             end,
-            SetValues = function(_, newVals)
+            SetValues = function(self, newVals)
                 values = newVals or {}
-                optHeight = math.min(180, #values * 32 + 8)
+                optHeight = math.clamp(#values * 32 + 8, 36, 180)
                 optionsContainer.Size = UDim2.new(1, -20, 0, optHeight)
+                buildOptions()
                 if isOpen then
-                    buildOptions()
                     f.Size = UDim2.new(1, 0, 0, headerH + optHeight + 8)
+                else
+                    f.Size = UDim2.new(1, 0, 0, headerH)
                 end
             end,
             SetOptions = function(self, newVals, selectVal)
                 self:SetValues(newVals)
-                if selectVal then self:SetValue(selectVal) end
+                if selectVal ~= nil then
+                    self:SetValue(selectVal)
+                elseif #values > 0 then
+                    self:SetValue(values[1])
+                end
             end,
             Set = function(self, v) self:SetValue(v) end,
             GetValue = function() return isMulti and selected or current end,
@@ -972,7 +1006,9 @@ local function addSection(tab, titleText, iconOptional)
         local cfg = o or {}
         if type(flagOrCfg) == "table" then
             cfg = flagOrCfg
-            flag = cfg.Name or cfg.Title or "Textbox"
+            flag = cfg.Flag or cfg.Name or cfg.Title or "Textbox"
+        elseif type(o) == "table" and o.Flag then
+            flag = o.Flag
         end
 
         local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, 48, cfg.Icon)
@@ -1020,7 +1056,9 @@ local function addSection(tab, titleText, iconOptional)
         local cfg = o or {}
         if type(flagOrCfg) == "table" then
             cfg = flagOrCfg
-            flag = cfg.Name or cfg.Title or "Keybind"
+            flag = cfg.Flag or cfg.Name or cfg.Title or "Keybind"
+        elseif type(o) == "table" and o.Flag then
+            flag = o.Flag
         end
 
         local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, 48, cfg.Icon)
@@ -1105,7 +1143,9 @@ local function addSection(tab, titleText, iconOptional)
         local cfg = o or {}
         if type(flagOrCfg) == "table" then
             cfg = flagOrCfg
-            flag = cfg.Name or cfg.Title or "ColorPicker"
+            flag = cfg.Flag or cfg.Name or cfg.Title or "ColorPicker"
+        elseif type(o) == "table" and o.Flag then
+            flag = o.Flag
         end
 
         local hasDesc = (cfg.Description or cfg.Desc) ~= nil
@@ -1350,24 +1390,28 @@ local function addSection(tab, titleText, iconOptional)
                 pcall(function() f:Destroy() end)
                 cfg = cfg or {}
                 cfg.Name = cfg.Name or cfg.Title or title
+                cfg.Flag = cfg.Flag or cfg.Name
                 return sec:AddDropdown(cfg)
             end,
             AddToggle = function(_, cfg)
                 pcall(function() f:Destroy() end)
                 cfg = cfg or {}
                 cfg.Name = cfg.Name or cfg.Title or title
+                cfg.Flag = cfg.Flag or cfg.Name
                 return sec:AddToggle(cfg)
             end,
             AddSlider = function(_, cfg)
                 pcall(function() f:Destroy() end)
                 cfg = cfg or {}
                 cfg.Name = cfg.Name or cfg.Title or title
+                cfg.Flag = cfg.Flag or cfg.Name
                 return sec:AddSlider(cfg)
             end,
             AddTextbox = function(_, cfg)
                 pcall(function() f:Destroy() end)
                 cfg = cfg or {}
                 cfg.Name = cfg.Name or cfg.Title or title
+                cfg.Flag = cfg.Flag or cfg.Name
                 return sec:AddTextbox(cfg)
             end,
         }
@@ -1514,6 +1558,10 @@ function Fluent:CreateWindow(o)
         if size.X.Offset > maxW or size.Y.Offset > maxH then
             size = UDim2.fromOffset(math.min(size.X.Offset, maxW), math.min(size.Y.Offset, maxH))
         end
+    end
+
+    if o.ConfigFolder or o.Folder then
+        self.ConfigFolder = tostring(o.ConfigFolder or o.Folder)
     end
 
     local w = {
@@ -2261,13 +2309,13 @@ function Fluent:CreateWindow(o)
             sec = tab:AddSection({ Name = "Config Profile Manager", Icon = "save" })
         end
 
-        local currentProfile = "default"
         local configsList = Fluent:GetConfigs()
+        local currentProfile = configsList[1] or "default"
 
         local profileInput = sec:AddTextbox({
             Name = "Profile Name",
             Placeholder = "Profile name (e.g. default)...",
-            Default = "default",
+            Default = currentProfile,
             Callback = function(txt)
                 if txt and txt ~= "" then currentProfile = txt end
             end
@@ -2276,7 +2324,7 @@ function Fluent:CreateWindow(o)
         local profileDropdown = sec:AddDropdown({
             Name = "Select Saved Profile",
             Options = configsList,
-            Default = configsList[1] or "default",
+            Default = currentProfile,
             Callback = function(choice)
                 currentProfile = choice
                 if profileInput and profileInput.SetValue then
@@ -2293,6 +2341,7 @@ function Fluent:CreateWindow(o)
                 local updated = Fluent:GetConfigs()
                 if profileDropdown and profileDropdown.SetOptions then
                     profileDropdown:SetOptions(updated, currentProfile)
+                    profileDropdown:Close()
                 end
             end
         })
@@ -2312,6 +2361,7 @@ function Fluent:CreateWindow(o)
                 currentProfile = updated[1] or "default"
                 if profileDropdown and profileDropdown.SetOptions then
                     profileDropdown:SetOptions(updated, currentProfile)
+                    profileDropdown:Close()
                 end
                 if profileInput and profileInput.SetValue then
                     profileInput:SetValue(currentProfile)
@@ -2322,8 +2372,15 @@ function Fluent:CreateWindow(o)
             Name = "Refresh List",
             Callback = function()
                 local updated = Fluent:GetConfigs()
+                if not table.find(updated, currentProfile) then
+                    currentProfile = updated[1] or "default"
+                end
                 if profileDropdown and profileDropdown.SetOptions then
                     profileDropdown:SetOptions(updated, currentProfile)
+                    profileDropdown:Close()
+                end
+                if profileInput and profileInput.SetValue then
+                    profileInput:SetValue(currentProfile)
                 end
                 Fluent:Notify({ Title = "Config Manager", Content = "Profiles refreshed.", Type = "Info", Duration = 1.5 })
             end
@@ -2367,21 +2424,33 @@ end
 -- Universal Config Serialization & Storage System
 -- ============================================================================
 local HttpService = game:GetService("HttpService")
-local CONFIG_BASE_DIR = "Liyhub"
-local CONFIG_DIR = "Liyhub/Configs"
+local _memoryConfigs = {}
+
+local function getConfigDir()
+    return Fluent.ConfigFolder or "Liyhub/Configs"
+end
 
 local function ensureConfigDir()
+    local folder = getConfigDir()
     if typeof(isfolder) == "function" and typeof(makefolder) == "function" then
         pcall(function()
-            if not isfolder(CONFIG_BASE_DIR) then makefolder(CONFIG_BASE_DIR) end
-            if not isfolder(CONFIG_DIR) then makefolder(CONFIG_DIR) end
+            local parts = folder:split("/")
+            local curr = ""
+            for _, part in ipairs(parts) do
+                if part ~= "" then
+                    curr = (curr == "" and part or (curr .. "/" .. part))
+                    if not isfolder(curr) then makefolder(curr) end
+                end
+            end
         end)
     end
 end
 
-local function getPlaceFilePrefix()
-    local pid = game.PlaceId or 0
-    return "Place_" .. tostring(pid)
+local function getProfilePath(name)
+    local dir = getConfigDir()
+    local cleanName = tostring(name or "default"):gsub("[^%w%-_%s]", "")
+    if cleanName == "" then cleanName = "default" end
+    return dir .. "/" .. cleanName .. ".json"
 end
 
 local function serializeValue(v)
@@ -2419,28 +2488,20 @@ local function deserializeValue(v)
     return v
 end
 
-local _memoryConfigs = {}
-
 function Fluent:GetConfigs()
     ensureConfigDir()
     local list = {}
     local seen = {}
-    local prefix = getPlaceFilePrefix() .. "_"
+    local dir = getConfigDir()
 
-    if typeof(listfiles) == "function" and typeof(isfolder) == "function" and isfolder(CONFIG_DIR) then
-        local s, files = pcall(listfiles, CONFIG_DIR)
+    if typeof(listfiles) == "function" and typeof(isfolder) == "function" and isfolder(dir) then
+        local s, files = pcall(listfiles, dir)
         if s and type(files) == "table" then
             for _, f in ipairs(files) do
                 local name = f:match("([^/\\]+)%.json$")
-                if name then
-                    local cleanName = name
-                    if name:sub(1, #prefix) == prefix then
-                        cleanName = name:sub(#prefix + 1)
-                    end
-                    if not seen[cleanName] then
-                        seen[cleanName] = true
-                        table.insert(list, cleanName)
-                    end
+                if name and not seen[name] then
+                    seen[name] = true
+                    table.insert(list, name)
                 end
             end
         end
@@ -2453,7 +2514,9 @@ function Fluent:GetConfigs()
         end
     end
 
-    if #list == 0 then table.insert(list, "default") end
+    if #list == 0 then
+        table.insert(list, "default")
+    end
     table.sort(list)
     return list
 end
@@ -2470,20 +2533,26 @@ function Fluent:SaveConfig(name)
     for flag, val in pairs(self.Flags) do
         data.Flags[flag] = serializeValue(val)
     end
+    for flag, opt in pairs(self.Options) do
+        if data.Flags[flag] == nil and opt and type(opt.GetValue) == "function" then
+            local val = opt:GetValue()
+            if val ~= nil then
+                data.Flags[flag] = serializeValue(val)
+            end
+        end
+    end
 
     local encoded = HttpService:JSONEncode(data)
     _memoryConfigs[name] = encoded
 
-    local savedToFile = false
+    local path = getProfilePath(name)
     if typeof(writefile) == "function" then
-        local path = CONFIG_DIR .. "/" .. getPlaceFilePrefix() .. "_" .. name .. ".json"
-        local s, _ = pcall(writefile, path, encoded)
-        savedToFile = s
+        pcall(writefile, path, encoded)
     end
 
     self:Notify({
         Title = "Config Saved",
-        Content = "Profile '" .. name .. "' successfully saved.",
+        Content = "Profile '" .. name .. "' saved successfully.",
         Type = "Success",
         Duration = 2.5
     })
@@ -2494,12 +2563,10 @@ function Fluent:LoadConfig(name)
     name = (name and name ~= "") and name or "default"
     ensureConfigDir()
     local raw = nil
+    local path = getProfilePath(name)
 
-    if typeof(isfile) == "function" and typeof(readfile) == "function" then
-        local path = CONFIG_DIR .. "/" .. getPlaceFilePrefix() .. "_" .. name .. ".json"
-        if isfile(path) then
-            pcall(function() raw = readfile(path) end)
-        end
+    if typeof(isfile) == "function" and typeof(readfile) == "function" and isfile(path) then
+        pcall(function() raw = readfile(path) end)
     end
 
     if not raw then
@@ -2540,7 +2607,7 @@ function Fluent:LoadConfig(name)
 
     self:Notify({
         Title = "Config Loaded",
-        Content = "Profile '" .. name .. "' applied to script.",
+        Content = "Profile '" .. name .. "' applied.",
         Type = "Success",
         Duration = 2.5
     })
@@ -2551,11 +2618,9 @@ function Fluent:DeleteConfig(name)
     name = (name and name ~= "") and name or "default"
     ensureConfigDir()
     _memoryConfigs[name] = nil
-    local path = CONFIG_DIR .. "/" .. getPlaceFilePrefix() .. "_" .. name .. ".json"
-    local del = false
+    local path = getProfilePath(name)
     if typeof(isfile) == "function" and typeof(delfile) == "function" and isfile(path) then
-        local s = pcall(delfile, path)
-        del = s
+        pcall(delfile, path)
     end
     self:Notify({
         Title = "Config Deleted",
