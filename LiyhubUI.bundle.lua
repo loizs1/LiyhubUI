@@ -1863,6 +1863,35 @@ function Fluent:CreateWindow(o)
         end
     end
 
+    function w:SetDevicePreset(preset)
+        local vp = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize) or Vector2.new(1280, 720)
+        local targetSize, targetTabW
+        if preset == "Android" or preset == "Mobile" then
+            targetSize = UDim2.fromOffset(math.clamp(math.floor(vp.X * 0.88), 460, 580), math.clamp(math.floor(vp.Y * 0.85), 330, 430))
+            targetTabW = 145
+        elseif preset == "Tablet" then
+            targetSize = UDim2.fromOffset(math.clamp(math.floor(vp.X * 0.85), 580, 680), math.clamp(math.floor(vp.Y * 0.82), 400, 490))
+            targetTabW = 160
+        elseif preset == "Compact" or preset == "Mini" then
+            targetSize = UDim2.fromOffset(480, 360)
+            targetTabW = 135
+        else
+            -- PC / Standard
+            targetSize = UDim2.fromOffset(680, 490)
+            targetTabW = 180
+        end
+
+        w.Size = targetSize
+        w.TabWidth = targetTabW
+        tween(main, 0.2, { Size = targetSize })
+        if sidebarContainer then
+            tween(sidebarContainer, 0.2, { Size = UDim2.new(0, targetTabW, 1, 0) })
+        end
+        if pages then
+            tween(pages, 0.2, { Position = UDim2.fromOffset(targetTabW + 10, 0), Size = UDim2.new(1, -targetTabW - 10, 1, 0) })
+        end
+    end
+
     -- Tab Instantiation
     function w:AddTab(to, iconOptional)
         local titleText = "Main"
