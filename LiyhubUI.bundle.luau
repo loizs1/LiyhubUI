@@ -1281,10 +1281,40 @@ local function addSection(tab, titleText, iconOptional)
     function sec:AddLabel(o)
         local title = type(o) == "string" and o or (o and (o.Text or o.Title) or "")
         local f = makeElement(holder, title, nil, 36)
+        local lbl = f:FindFirstChildOfClass("TextLabel")
         local e = {
             Frame = f,
+            Title = title,
+            SetText = function(_, newText)
+                if lbl then lbl.Text = tostring(newText or "") end
+            end,
+            Text = function(self, newText) self:SetText(newText) end,
             SetSearch = function(_, q)
                 f.Visible = q == "" or string.find(string.lower(title), q, 1, true) ~= nil
+            end,
+            AddDropdown = function(_, cfg)
+                pcall(function() f:Destroy() end)
+                cfg = cfg or {}
+                cfg.Name = cfg.Name or cfg.Title or title
+                return sec:AddDropdown(cfg)
+            end,
+            AddToggle = function(_, cfg)
+                pcall(function() f:Destroy() end)
+                cfg = cfg or {}
+                cfg.Name = cfg.Name or cfg.Title or title
+                return sec:AddToggle(cfg)
+            end,
+            AddSlider = function(_, cfg)
+                pcall(function() f:Destroy() end)
+                cfg = cfg or {}
+                cfg.Name = cfg.Name or cfg.Title or title
+                return sec:AddSlider(cfg)
+            end,
+            AddTextbox = function(_, cfg)
+                pcall(function() f:Destroy() end)
+                cfg = cfg or {}
+                cfg.Name = cfg.Name or cfg.Title or title
+                return sec:AddTextbox(cfg)
             end,
         }
         table.insert(sec.Elements, e)
@@ -2144,6 +2174,89 @@ function Fluent:CreateWindow(o)
     -- Compatibility Aliases for Notifications
     w.Notify = function(_, opt) return Fluent:Notify(opt) end
     w.MakeNotify = function(_, opt) return Fluent:Notify(opt) end
+    function w:ToggleInterface() self:Toggle() end
+
+    function w:Watermark(watermarkCfg)
+        local wmHolder = Instance.new("Frame")
+        wmHolder.Name = "LiyhubWatermark"
+        wmHolder.AnchorPoint = Vector2.new(0, 0)
+        wmHolder.Position = UDim2.fromOffset(18, 16)
+        wmHolder.Size = UDim2.fromOffset(0, 30)
+        wmHolder.AutomaticSize = Enum.AutomaticSize.X
+        wmHolder.BackgroundTransparency = 1
+        wmHolder.ZIndex = 500
+        wmHolder.Parent = gui
+
+        local wmLay = Instance.new("UIListLayout")
+        wmLay.FillDirection = Enum.FillDirection.Horizontal
+        wmLay.Padding = UDim.new(0, 6)
+        wmLay.SortOrder = Enum.SortOrder.LayoutOrder
+        wmLay.Parent = wmHolder
+
+        local wm = { Holder = wmHolder }
+        function wm:AddBlock(iconName, textVal)
+            local btn = Instance.new("TextButton")
+            btn.Name = "Block_" .. tostring(textVal or "Block")
+            btn.AutoButtonColor = false
+            btn.Text = ""
+            btn.BackgroundColor3 = Fluent.CurrentTheme.Surface
+            btn.BackgroundTransparency = 0.15
+            btn.Size = UDim2.fromOffset(0, 26)
+            btn.AutomaticSize = Enum.AutomaticSize.X
+            btn.ZIndex = 501
+            btn.Parent = wmHolder
+            corner(btn, 6)
+            stroke(btn, Fluent.CurrentTheme.Border, 0.4)
+            pad(btn, 3, 9, 3, 9)
+
+            local rowLay = Instance.new("UIListLayout")
+            rowLay.FillDirection = Enum.FillDirection.Horizontal
+            rowLay.VerticalAlignment = Enum.VerticalAlignment.Center
+            rowLay.Padding = UDim.new(0, 5)
+            rowLay.Parent = btn
+
+            local iType, iVal = resolveIcon(iconName)
+            if iType == "image" then
+                local ico = Instance.new("ImageLabel")
+                ico.Size = UDim2.fromOffset(13, 13)
+                ico.BackgroundTransparency = 1
+                ico.Image = iVal
+                ico.ImageColor3 = Fluent.CurrentTheme.Accent
+                ico.ScaleType = Enum.ScaleType.Fit
+                ico.ZIndex = 502
+                ico.Parent = btn
+            elseif iType == "text" then
+                local em = Instance.new("TextLabel")
+                em.Size = UDim2.fromOffset(14, 14)
+                em.BackgroundTransparency = 1
+                em.Text = iVal
+                em.TextSize = 12
+                em.TextColor3 = Fluent.CurrentTheme.Accent
+                em.Font = Enum.Font.GothamMedium
+                em.ZIndex = 502
+                em.Parent = btn
+            end
+
+            local lbl = text(btn, tostring(textVal or ""), 11, Fluent.CurrentTheme.Text)
+            lbl.Size = UDim2.fromOffset(0, 18)
+            lbl.AutomaticSize = Enum.AutomaticSize.X
+            lbl.Font = Enum.Font.GothamBold
+            lbl.ZIndex = 502
+
+            local blockObj = { Button = btn, Label = lbl }
+            function blockObj:SetText(t)
+                lbl.Text = tostring(t or "")
+            end
+            blockObj.Text = blockObj.SetText
+            function blockObj:Input(cb)
+                btn.MouseButton1Click:Connect(function()
+                    if type(cb) == "function" then cb() end
+                end)
+            end
+            return blockObj
+        end
+        return wm
+    end
 
     -- Universal Config Manager API
     function w:SaveConfig(name) return Fluent:SaveConfig(name) end
@@ -2557,6 +2670,14 @@ end
 
 Fluent.MakeNotify = Fluent.Notify
 
+function Fluent:CreateNotification()
+    return {
+        new = function(opt)
+            return Fluent:Notify(opt)
+        end
+    }
+end
+
 function Fluent:SetTheme(name)
     if self.Themes[name] then
         self.CurrentTheme = self.Themes[name]
@@ -2564,4 +2685,5 @@ function Fluent:SetTheme(name)
 end
 
 g.Liyhub = Fluent
+g.NeverLose = Fluent
 return Fluent
