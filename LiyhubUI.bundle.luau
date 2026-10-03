@@ -470,15 +470,19 @@ local function addSection(tab, titleText, iconOptional)
     head.Font = Enum.Font.GothamBold
 
     local function resize()
-        holder.Size = UDim2.new(1, 0, 0, list.AbsoluteContentSize.Y + 16)
-        if tab and tab.Page then
-            local pl = tab.Page:FindFirstChildOfClass("UIListLayout")
-            if pl then
-                tab.Page.CanvasSize = UDim2.new(0, 0, 0, pl.AbsoluteContentSize.Y + 36)
+        task.defer(function()
+            if not holder or not holder.Parent then return end
+            holder.Size = UDim2.new(1, 0, 0, list.AbsoluteContentSize.Y + 16)
+            if tab and tab.Page then
+                local pl = tab.Page:FindFirstChildOfClass("UIListLayout")
+                if pl then
+                    tab.Page.CanvasSize = UDim2.new(0, 0, 0, pl.AbsoluteContentSize.Y + 36)
+                end
             end
-        end
+        end)
     end
     list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
+    sec.Resize = resize
 
     function sec:SetSearch(q)
         for _, e in ipairs(self.Elements) do
@@ -2469,13 +2473,40 @@ function Fluent:CreateWindow(o)
         return tab
     end
 
-    if o.SaveConfig or o.AutoConfig then
-        task.defer(function()
+    task.defer(function()
+        if o.SaveConfig or o.AutoConfig then
             if not w.Tabs["Settings"] and not w.Tabs["settings"] then
                 w:AddSettingsTab()
             end
-        end)
-    end
+        end
+
+        if o.AutoConfig then
+            pcall(function()
+                local activeProf = w.ActiveConfigProfile or Fluent.ActiveConfigProfile or "default"
+                w:LoadConfig(activeProf)
+            end)
+        end
+
+        for _, t in ipairs(w._tabs) do
+            if t.Page then
+                local pl = t.Page:FindFirstChildOfClass("UIListLayout")
+                if pl then
+                    t.Page.CanvasSize = UDim2.new(0, 0, 0, pl.AbsoluteContentSize.Y + 36)
+                end
+            end
+            for _, el in ipairs(t.Elements) do
+                if type(el) == "table" and type(el.Resize) == "function" then
+                    el:Resize()
+                end
+            end
+        end
+
+        if not w.ActiveTab and #w._tabs > 0 then
+            w._tabs[1]:Select()
+        elseif w.ActiveTab then
+            w.ActiveTab:Select()
+        end
+    end)
 
     return w
 end
