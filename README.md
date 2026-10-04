@@ -62,8 +62,8 @@ Liyhub:Notify({
 
 - **Procedural Monogram Logo**: Logo kurva L-gradient dengan celestial orb cyan procedural (tidak memerlukan external `rbxassetid` yang rentan terhapus).
 - **Mobile Floating Draggable Pin Widget**: Otomatis aktif saat window di-minimize `[-]` atau pin `[📌]`. Dapat digeser bebas di layar dan posisi tersimpan otomatis.
-- **Stealth & Anti-Detection**:
-  - GUI diisolasi langsung ke `gethui()` $\rightarrow$ `CoreGui` $\rightarrow$ fallback `PlayerGui`.
+- **Stealth & Universal Capability Compatibility**:
+  - GUI memprioritaskan `PlayerGui` $\rightarrow$ `gethui()` $\rightarrow$ `CoreGui` untuk menghindari crash security bypass Roblox terbaru (`cannot access 'Instance' (lacking capability Plugin)`).
   - Terproteksi dari pemindaian skrip game lokal (`ScreenGui` tidak dapat diinspeksi oleh skrip game biasa).
   - Standar **Zero `print()`** di dalam callback widget untuk menghindari deteksi via `LogService.MessageOut`.
 - **Search System Cepat**: Filter pencarian elemen real-time terintegrasi dengan debounce 120ms (bebas stutter di mobile).
@@ -358,8 +358,59 @@ LiyhubUI dirancang agar skrip-skrip legacy (baik yang awalnya ditulis untuk **Ne
 ---
 
 ## 🛡️ Anti-Patterns & Best Practices
-
+ 
 1. ❌ **Hindari `print()` di Callback**: Jangan letakkan perintah `print()` di dalam callback tombol/toggle/slider agar tidak tertangkap oleh `LogService` anticheat game.
 2. ❌ **Jangan gunakan `_G`**: Gunakan `getgenv()` secara konsisten untuk menyimpan state global antar eksekusi.
 3. ❌ **Jangan hardcode `rbxassetid://` untuk Logo**: LiyhubUI menggunakan monogram vektor procedural. Jangan menambahkan logo eksternal yang membebani memori.
 4. ✅ **Bungkus Loop dengan `task.spawn`**: Pastikan looping otomasi berjalan asinkron dan selalu berikan delay `task.wait()` yang wajar agar FPS pemain tetap stabil.
+
+---
+
+## ⚠️ PENTING: Panduan Pengembang & Kontributor (Developer Checklist)
+
+> [!CAUTION]
+> **JANGAN LEWATKAN BAGIAN INI SAAT MENGEMBANGKAN FITUR ATAU MEMBUAT UI DENGAN LIYHUBUI!**
+> Roblox secara berkala memperketat sistem kapabilitas thread (`Capabilities` / `Security Context`) di engine Luau. Kelalaian pada poin di bawah ini akan menyebabkan script crash instan dengan error merah:
+> `The current thread cannot access 'Instance' (lacking capability Plugin)`.
+
+### 1. 🚨 Prioritas Parent GUI: Selalu Dahulukan `PlayerGui`
+- **JANGAN** pernah memaksakan `CoreGui` atau `gethui()` sebagai prioritas pertama tanpa memeriksa `PlayerGui`.
+- Di Roblox versi modern, thread callback sinyal engine yang mengakses instance di dalam `CoreGui` akan kehilangan privilege dan meledak menjadi error `lacking capability Plugin`.
+- **Wajib gunakan urutan ini**:
+  ```luau
+  local function parentGui()
+      local lp = game:GetService("Players").LocalPlayer
+      if lp then
+          local pg = lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui", 5)
+          if pg then return pg end
+      end
+      local ok, h = pcall(function() return gethui and gethui() end)
+      if ok and h then return h end
+      local okCg, cg = pcall(function() return game:GetService("CoreGui") end)
+      if okCg and cg then return cg end
+      return game:GetService("StarterGui")
+  end
+  ```
+
+### 2. 🚨 Hindari Listen Langsung ke `workspace.CurrentCamera`
+- **JANGAN** menghubungkan sinyal `workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize")` secara telanjang tanpa pembersihan:
+  - Sinyal ini dijalankan langsung oleh renderer engine C++ Roblox.
+  - Sinyal pada `workspace.CurrentCamera` **TIDAK AKAN PUTUS** meskipun GUI dihancurkan (`ScreenGui:Destroy()`), menyebabkan kebocoran memori (memory leak) dan error berulang di game.
+- **Solusi yang Benar**:
+  - Gunakan `ScreenGui:GetPropertyChangedSignal("AbsoluteSize")` karena sinyal pada `ScreenGui` otomatis terputus saat GUI di-destroy.
+  - Jika tetap memerlukan kamera, **WAJIB** simpan koneksinya ke variabel lokal dan panggil `:Disconnect()` saat GUI ditutup, serta bungkus callback di dalam `pcall()`.
+
+### 3. 🚨 Selalu Bungkus Callback Deferred / Resize dengan `pcall`
+- Saat menggunakan `task.defer` atau `task.spawn` untuk menghitung ulang ukuran list (`AbsoluteContentSize`), selalu validasi keberadaan instance parent:
+  ```luau
+  task.defer(function()
+      pcall(function()
+          if not holder or not holder.Parent or not list or not list.Parent then return end
+          holder.Size = UDim2.new(1, 0, 0, list.AbsoluteContentSize.Y + 16)
+      end)
+  end)
+  ```
+
+### 4. 🚨 DisplayOrder Tinggi & Draggable Pada Modal/Dialog Penting
+- Dialog penting seperti **Key Gateway**, **Loading Screen**, atau **Prompt Konfirmasi** wajib memiliki `DisplayOrder = 999999` agar tidak tenggelam di balik popup update bawaan game.
+- Berikan fitur drag pada `TitleBar` agar pemain di mobile/PC dapat menggeser dialog jika menutupi tombol penting dalam game.
