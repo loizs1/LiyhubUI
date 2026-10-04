@@ -32,7 +32,7 @@ local Window = Liyhub:CreateWindow({
     SubTitle = "by Liyhub Team",
     Size = UDim2.fromOffset(740, 490),
     ConfigFolder = "Liyhub_GameConfig",
-    AutoConfig = true,
+    AutoConfig = false, -- Disarankan false agar tidak auto-load saat baru execute
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
@@ -83,10 +83,14 @@ local Window = Liyhub:CreateWindow({
     Size = UDim2.fromOffset(740, 490), -- Ukuran default (otomatis diklem jika mobile)
     TabWidth = 160,                    -- Lebar panel navigasi tab (default: 145-180)
     ConfigFolder = "Liyhub_MyGame",    -- Folder penyimpan file konfigurasi
-    AutoConfig = true,                 -- Otomatis load profile default saat start
+    AutoConfig = false,                -- Jangan auto-load saat start (disarankan false)
     MinimizeKey = Enum.KeyCode.RightControl -- Tombol keyboard toggle UI
 })
 ```
+
+> ⚠️ **Catatan Pembaruan Config / Config Notice**:
+> - **[ID]**: Jika script menerima update baru, mohon hapus setting config lama dan buat config baru agar tidak terjadi konflik atau error flag antar versi.
+> - **[EN]**: If the script receives a new update, please delete the old config file and create a new one to prevent flag conflicts or corruption across versions.
 
 **Window Methods**:
 - `Window:Toggle()` / `Window:ToggleInterface()`: Menampilkan / menyembunyikan window.

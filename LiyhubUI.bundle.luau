@@ -2519,6 +2519,11 @@ function Fluent:CreateWindow(o)
             end
         })
 
+        sec:AddParagraph({
+            Title = "Config Notice / Perhatian Config",
+            Content = "[ID] Jika skrip menerima pembaruan, harap buat config baru dan hapus config lama agar tidak terjadi konflik atau error flag.\n\n[EN] If the script receives an update, please create a new config and delete old ones to prevent flag conflicts or corruption."
+        })
+
         return sec
     end
 
