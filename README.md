@@ -1,193 +1,344 @@
-# LiyhubUI Framework (WindUI Integration)
+# 🛡️ Panduan Standar Integrasi LiyhubUI (AI & Developer Guidelines)
 
-LiyhubUI 2.0 is a dark-modern, high-performance UI framework powered by the **WindUI** engine ([Footagesus/WindUI](https://github.com/Footagesus/WindUI)). It provides deep procedural styling, smooth animations, native draggable mobile floating buttons, Lucide/Solar icons, and multi-game execution compatibility for both Roblox Studio and Executors.
+Dokumen ini adalah aturan arsitektur resmi untuk semua script di dalam folder `liyhubasset/`. Setiap AI atau developer yang membuat, mengedit, atau merefaktor script game **WAJIB** mengikuti struktur dan penempatan di bawah ini agar tidak terjadi kesalahan baca, tabrakan sintaks (NeverLose vs Fluent/WindUI), atau kegagalan eksekusi.
 
 ---
 
-## 🚀 Instant Loadstring
+## 📌 1. Urutan Struktur Script (Strict Hierarchy)
 
-Load LiyhubUI into any script with a single line:
+Setiap script game LiyHub **HARUS** disusun dengan urutan hierarki berikut secara ketat:
 
-```luau
-local Liyhub = loadstring(game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/LiyhubUI.bundle.luau"))()
+```text
+[1] Game Loaded Check (repeat task.wait() until game:IsLoaded())
+[2] Anti-Reexecution & Cleanup Old Window
+[3] Universal Robust UI Loader (LiyhubUI -> neverloseRemake -> 4lpaca-pin -> Global)
+[4] UI Fail-Safe Alert (StarterGui:SetCore)
+[5] Compatibility Polyfill Layer (AddTextInput, pingBlock.Set, lbl.Set)
+[6] Window Creation (Liyhub:CreateWindow)
+[7] Watermark & UI Toggle Input
+[8] Notification Helper (SendNotification)
+[9] Tab Creation (Window:AddTab)
+[10] Section Creation (Tab:AddSection)
+[11] Roblox Services & Game State Variables
+[12] Logic & Core Farming Functions
+[13] UI Elements Binding (Toggles, Sliders, Dropdowns, Buttons)
+[14] Active Loops & Heartbeat Connections
 ```
 
 ---
 
-## 🎨 Liyhub Obsidian Theme
+## 🚀 2. Template Header & Loader Standar (Copy-Paste Ready)
 
-LiyhubUI automatically injects and activates the **`Liyhub`** obsidian palette:
-- **Canvas / Background**: `#0A0A0D` (Pure deep obsidian)
-- **Primary / Accent**: `#00A2FF` (Electric Liyhub Cyan)
-- **Active Toggle**: `#00E5FF` (Neon Cyan)
-- **Cards & Dialogs**: `#101015` / `#121217`
-- **Text**: `#FFFFFF` (Crisp solid white) & `#8C91A5` (Subdued labels)
+```lua
+repeat task.wait() until game:IsLoaded()
 
-You can also use any standard WindUI theme (`Dark`, `Light`, `Rose`, `Plant`, `Midnight`, `Cyberpunk`) via `Window:SetTheme("Dark")` or `Liyhub:SetTheme("Liyhub")`.
+local g = getgenv and getgenv() or _G
 
----
+-- 1. Anti Re-execution
+if g.Liyhub_GameName_Running then
+    g.Liyhub_GameName_Running = false
+    task.wait(0.3)
+end
+g.Liyhub_GameName_Running = true
 
-## 🛠️ Complete Component API Reference
+-- 2. Cleanup Old Window
+local oldWindow = g.Liyhub_GameName_Window
+if oldWindow and type(oldWindow.Destroy) == "function" then
+    pcall(function() oldWindow:Destroy() end)
+end
 
-LiyhubUI supports **both** classic Liyhub component calls and native WindUI calls:
+-- 3. Multi-tier Robust UI Loader
+local Liyhub = nil
 
-### 1. Creating the Window
-```luau
-local Window = Liyhub:CreateWindow({
-    Title = "Liyhub | Game Name",
-    Author = "Liyhub Team",
-    Folder = "Liyhub_GameConfig",
-    Icon = "solar:box-bold-duotone", -- Solar or Lucide icon
-    Theme = "Liyhub",                -- Default is Liyhub
-    Size = UDim2.fromOffset(740, 490),
-    OpenButton = {                   -- Built-in Draggable Mobile Floating Button
-        Enabled = true,
-        OnlyMobile = false,
-        Scale = 0.5,
-    }
-})
-```
-
-### 2. Tabs & Sections
-```luau
--- Add Tab (Accepts Name and Icon)
-local CombatTab = Window:AddTab("Combat", "solar:target-bold-duotone")
-
--- Add Section
-local AimSec = CombatTab:AddSection("Targeting")
-```
-
-### 3. Component Suite
-```luau
--- Toggle
-AimSec:AddToggle({
-    Name = "Silent Aim",
-    Desc = "Redirects projectile trajectory directly to enemy hitbox.",
-    Default = false,
-    Callback = function(state: boolean)
-        -- logic
+pcall(function()
+    local raw = game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/LiyhubUI.bundle.luau")
+    if raw and #raw > 100 then
+        Liyhub = loadstring(raw)()
     end
+end)
+
+if not Liyhub or type(Liyhub.CreateWindow) ~= "function" then
+    pcall(function()
+        local raw = game:HttpGet("https://raw.githubusercontent.com/thantzy/DummyUI/refs/heads/main/neverloseRemake.lua")
+        if raw and #raw > 100 then
+            Liyhub = loadstring(raw)()
+        end
+    end)
+end
+
+if not Liyhub or type(Liyhub.CreateWindow) ~= "function" then
+    pcall(function()
+        local raw = game:HttpGet("https://raw.githubusercontent.com/4lpaca-pin/NeverLose/refs/heads/main/source.luau")
+        if raw and #raw > 100 then
+            Liyhub = loadstring(raw)()
+        end
+    end)
+end
+
+if not Liyhub or type(Liyhub.CreateWindow) ~= "function" then
+    Liyhub = (getgenv and (getgenv().Liyhub or getgenv().NeverLose)) or _G.Liyhub or _G.NeverLose or (shared and (shared.Liyhub or shared.NeverLose))
+end
+
+-- 4. Fail-Safe Alert (No Silent Exit!)
+if not Liyhub or type(Liyhub.CreateWindow) ~= "function" then
+    warn("[LIYHUB] Failed to load UI Library!")
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "LIYHUB Error",
+            Text = "Failed to load UI Library. Check network / executor HTTP.",
+            Duration = 6
+        })
+    end)
+    return
+end
+
+-- 5. Compatibility Polyfill (NeverLose <-> LiyhubUI Bridge)
+if not Liyhub._LiyhubCompatApplied then
+    Liyhub._LiyhubCompatApplied = true
+    local origCreateWindow = Liyhub.CreateWindow
+    Liyhub.CreateWindow = function(self, opt)
+        local win = origCreateWindow(self, opt)
+        if win and win.AddTab then
+            local origAddTab = win.AddTab
+            win.AddTab = function(wSelf, to, iconOpt)
+                local tab = origAddTab(wSelf, to, iconOpt)
+                if tab and tab.AddSection then
+                    local origAddSection = tab.AddSection
+                    tab.AddSection = function(tSelf, secOpt, sIcon)
+                        local sec = origAddSection(tSelf, secOpt, sIcon)
+                        if sec then
+                            if not sec.AddTextInput and sec.AddTextbox then
+                                sec.AddTextInput = function(s, cfg, ...) return s:AddTextbox(cfg, ...) end
+                            end
+                            if sec.AddLabel then
+                                local origAddLabel = sec.AddLabel
+                                sec.AddLabel = function(s, lOpt, ...)
+                                    local lbl = origAddLabel(s, lOpt, ...)
+                                    if lbl and type(lbl) == "table" then
+                                        if not lbl.AddTextInput and lbl.AddTextbox then
+                                            lbl.AddTextInput = function(lSelf, cfg) return lSelf:AddTextbox(cfg) end
+                                        end
+                                        if not lbl.Set and lbl.SetText then
+                                            lbl.Set = function(lSelf, val) return lSelf:SetText(val) end
+                                        end
+                                    end
+                                    return lbl
+                                end
+                            end
+                        end
+                        return sec
+                    end
+                end
+                return tab
+            end
+        end
+        if win and win.Watermark then
+            local origWatermark = win.Watermark
+            win.Watermark = function(wSelf, wOpt)
+                local wm = origWatermark(wSelf, wOpt)
+                if wm and wm.AddBlock then
+                    local origAddBlock = wm.AddBlock
+                    wm.AddBlock = function(wmSelf, icon, text)
+                        local blk = origAddBlock(wmSelf, icon, text)
+                        if blk and type(blk) == "table" then
+                            if not blk.Set and blk.SetText then
+                                blk.Set = function(bSelf, val) return bSelf:SetText(val) end
+                            end
+                            if not blk.Input then
+                                blk.Input = function() end
+                            end
+                        end
+                        return blk
+                    end
+                end
+                return wm
+            end
+        end
+        return win
+    end
+end
+```
+
+---
+
+## 📱 3. Setup Window, Watermark, & Notifier
+
+```lua
+local uis = game:GetService("UserInputService")
+local isMobile = uis.TouchEnabled and not uis.KeyboardEnabled
+
+local Window = Liyhub:CreateWindow({
+    Title = "LIYHUB | Game Name",
+    Name = "LIYHUB | Game Name",
+    Content = "Game Name Automation By LIYHUB",
+    Size = isMobile and UDim2.fromOffset(580, 430) or UDim2.fromOffset(740, 490),
+    ConfigFolder = "LIYHUB_GameName_Config",
+    AutoConfig = true,
+    Keybind = "Insert"
+})
+g.Liyhub_GameName_Window = Window
+
+-- Watermark Setup
+local Watermark = nil
+local pingBlock = { Set = function() end }
+local uiToggleBlock = { Input = function() end }
+
+pcall(function()
+    if Window and type(Window.Watermark) == "function" then
+        Watermark = Window:Watermark()
+        if Watermark and type(Watermark.AddBlock) == "function" then
+            pingBlock = Watermark:AddBlock("chart-four-vertical-bars", "0MS")
+            uiToggleBlock = Watermark:AddBlock("cube-vertexes", "LIYHUB")
+            uiToggleBlock:Input(function()
+                if Window and type(Window.ToggleInterface) == "function" then
+                    Window:ToggleInterface()
+                end
+            end)
+        end
+    end
+end)
+
+-- Notifier Setup (Compatible with both .new and :Notify)
+local Notifier = nil
+pcall(function()
+    Notifier = Liyhub:CreateNotification()
+end)
+
+local function SendNotification(title, content, duration)
+    duration = duration or 3
+    pcall(function()
+        if Notifier and type(Notifier.new) == "function" then
+            Notifier.new({
+                Title = title or "LIYHUB",
+                Content = tostring(content or ""),
+                Duration = duration
+            })
+        elseif Notifier and type(Notifier.Notify) == "function" then
+            Notifier:Notify({
+                Title = title or "LIYHUB",
+                Content = tostring(content or ""),
+                Duration = duration
+            })
+        else
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = title or "LIYHUB",
+                Text = tostring(content or ""),
+                Duration = duration
+            })
+        end
+    end)
+end
+```
+
+---
+
+## 🎛️ 4. Cara Penggunaan Komponen UI (LiyhubUI vs NeverLose)
+
+LiyhubUI mendukung dua gaya penulisan komponen:
+
+### Gaya A: Fluent / Direct Section Method (Direkomendasikan untuk Script Baru)
+```lua
+local Tab = Window:AddTab({ Name = "Main", Icon = "home", Type = "Double" })
+local Sec = Tab:AddSection({ Name = "Farming", Position = "left" })
+
+-- Toggle
+Sec:AddToggle({
+    Name = "Auto Farm",
+    Default = false,
+    Callback = function(val)
+        Config.AutoFarm = val
+    end,
+    Flag = "AutoFarmToggle"
 })
 
 -- Slider
-AimSec:AddSlider({
-    Name = "Hit Chance %",
-    Desc = "Targeting probability calculation.",
-    Min = 0,
-    Max = 100,
-    Default = 85,
-    Step = 1,
-    Callback = function(val: number)
-        -- logic
+Sec:AddSlider({
+    Name = "Speed",
+    Min = 16,
+    Max = 200,
+    Default = 16,
+    Callback = function(val)
+        Config.Speed = val
+    end,
+    Flag = "SpeedSlider"
+})
+
+-- Dropdown
+Sec:AddDropdown({
+    Name = "Target Mode",
+    Values = { "Nearest", "Highest Value", "Lowest Health" },
+    Default = "Nearest",
+    Callback = function(choice)
+        Config.Mode = choice
     end
 })
 
--- Dropdown (Single Select)
-AimSec:AddDropdown({
-    Name = "Target Hitbox",
-    Options = { "Head", "HumanoidRootPart", "Torso", "Random" },
-    Default = "Head",
-    Callback = function(choice: string)
-        -- logic
-    end
-})
-
--- MultiDropdown (Multi Select)
-AimSec:AddMultiDropdown({
-    Name = "Target Filter",
-    Options = { "Enemies", "NPCs", "Friends", "Downed" },
-    Default = { "Enemies" },
-    Callback = function(selectedList: {string})
-        -- logic
-    end
-})
-
--- ColorPicker
-AimSec:AddColorPicker({
-    Name = "Chams Accent Color",
-    Default = Color3.fromRGB(0, 162, 255),
-    Callback = function(col: Color3)
-        -- logic
-    end
-})
-
--- Keybind
-AimSec:AddKeybind({
-    Name = "Trigger Keybind",
-    Default = Enum.KeyCode.RightControl,
-    Callback = function(key: Enum.KeyCode)
-        -- logic
-    end
-})
-
--- Textbox / Input
-AimSec:AddTextbox({
+-- Textbox
+Sec:AddTextbox({
     Name = "Target Player",
-    Placeholder = "Enter username...",
+    Placeholder = "Enter name...",
     Default = "",
-    Callback = function(text: string)
-        -- logic
+    Callback = function(txt)
+        Config.TargetPlayer = txt
     end
 })
 
 -- Button
-AimSec:AddButton({
-    Name = "Refresh Pool",
-    Desc = "Instantly clears and resets all targeting caches.",
+Sec:AddButton({
+    Name = "Teleport Base",
     Callback = function()
-        -- logic
+        TeleportToBase()
     end
 })
-
--- Paragraph & Labels
-AimSec:AddParagraph({
-    Title = "Notice",
-    Content = "All features run asynchronously without lag spikes."
-})
-AimSec:AddLabel("Status: Active")
-
--- Divider
-AimSec:AddDivider()
-
--- Dual-Widget Row (Side-by-side grouped elements)
-local row = AimSec:AddRow()
-row:AddToggle({ Name = "Auto Parry", Default = false, Callback = function(s) end })
-row:AddKeybind({ Name = "Parry Key", Default = Enum.KeyCode.F, Callback = function(k) end })
 ```
 
-### 4. Notifications & Toasts
-```luau
-Liyhub:Notify({
-    Title = "Liyhub",
-    Content = "Script loaded cleanly.",
-    Duration = 3,
-    Type = "Success" -- "Success" | "Info" | "Warning"
+### Gaya B: NeverLose Chained Label Method (Didukung Penuh oleh Polyfill Liyhub)
+```lua
+-- Toggle di bawah Label
+Sec:AddLabel("Auto Farm Coins"):AddToggle({
+    Default = false,
+    Callback = function(val) end,
+    Flag = "AutoCoinsToggle"
 })
-```
 
----
+-- Slider di bawah Label
+Sec:AddLabel("Attack Delay"):AddSlider({
+    Min = 0.1,
+    Max = 2.0,
+    Default = 0.5,
+    Callback = function(val) end
+})
 
-## ⚡ Direct WindUI Engine Access
+-- Dropdown di bawah Label
+Sec:AddLabel("Select Weapon"):AddDropdown({
+    Values = { "Sword", "Gun", "Bow" },
+    Default = "Sword",
+    Callback = function(v) end
+})
 
-You can also bypass the wrapper and directly interact with raw WindUI features anytime:
-
-```luau
-local WindUI = Liyhub.WindUI
-
--- Native Popup
-WindUI:Popup({
-    Title = "Welcome",
-    Content = "Enjoying LiyhubUI with WindUI engine!",
-    Buttons = {
-        { Title = "Got it", Variant = "Primary" }
-    }
+-- Text Input di bawah Label (Otomatis dialiaskan ke AddTextbox via Polyfill)
+Sec:AddLabel("Promo Code"):AddTextInput({
+    Default = "",
+    Placeholder = "Enter code...",
+    Callback = function(code) end
 })
 ```
 
 ---
 
-## 📱 Mobile Support & Draggable Pin Button
+## 🚫 5. Larangan Keras untuk AI (Anti-Patterns / DO NOT DO)
 
-- Built into WindUI via `OpenButton`.
-- Fully draggable floating pill widget.
-- Automatically handles touch vs mouse inputs without accidental clicks.
+1. ❌ **JANGAN PERNAH menyuntikkan kode string (`string.sub` / `string.find`) ke `parentGui()`**.
+   - `LiyhubUI.bundle.luau` sudah memiliki deteksi `gethui() -> PlayerGui -> CoreGui -> StarterGui` secara bawaan dan aman. String replacement manual merusak sintaks chunk luau.
+2. ❌ **JANGAN PERNAH meng-override `getgenv().gethui` secara global**.
+   - Ini merusak proteksi GUI executor dan menyebabkan memory leak atau error pada script lain.
+3. ❌ **JANGAN PERNAH memasukkan URL `http://127.0.0.1:9876`**.
+   - Ini adalah port lokal debug pribadi. Menjalankannya di executor publik akan membuat script hang/timeout bermenit-menit.
+4. ❌ **JANGAN PERNAH melakukan `silent return` jika UI gagal dimuat**.
+   - Selalu berikan notifikasi melalui `StarterGui:SetCore("SendNotification")` agar pemain tahu mengapa UI tidak muncul.
+5. ❌ **JANGAN PERNAH memasang `setfenv(1, ...)` di awal file**.
+   - `setfenv` menonaktifkan optimasi JIT/VM Luau dan memutus referensi environment executor.
+6. ❌ **JANGAN panggil `pingBlock:Set(...)` tanpa guard atau polyfill**.
+   - Pada library LiyhubUI, watermark blok memakai `SetText`. Loader polyfill di atas sudah mengaliaskan `.Set` ke `.SetText`.
+7. ❌ **JANGAN merusak gameplay logic saat memperbaiki UI**.
+   - Perbaikan UI hanya boleh menyentuh header inisialisasi, pembuatan window, dan pemanggilan komponen. Logika farming/combat/gameplay harus tetap utuh.
