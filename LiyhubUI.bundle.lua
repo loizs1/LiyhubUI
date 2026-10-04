@@ -151,15 +151,16 @@ local function button(p, s, h)
 end
 
 local function parentGui()
+    local ok, h = pcall(function() return gethui and gethui() end)
+    if ok and h then return h end
+    local okCg, cg = pcall(function() return CoreGui end)
+    if okCg and cg then return cg end
     local lp = Players.LocalPlayer or LocalPlayer
     if lp then
         local pg = lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui", 5)
         if pg then return pg end
     end
-    local ok, h = pcall(function() return gethui and gethui() end)
-    if ok and h then return h end
-    local okCg, cg = pcall(function() return CoreGui end)
-    return (okCg and cg) or game:GetService("StarterGui")
+    return game:GetService("StarterGui")
 end
 
 local function drag(handle, target)
@@ -1443,6 +1444,12 @@ local function addSection(tab, titleText, iconOptional)
                 cfg.Flag = cfg.Flag or cfg.Name
                 return sec:AddTextbox(cfg)
             end,
+            AddTextInput = function(self, cfg)
+                return self:AddTextbox(cfg)
+            end,
+            Set = function(self, newText)
+                self:SetText(newText)
+            end,
         }
         table.insert(sec.Elements, e)
         return e
@@ -1529,6 +1536,10 @@ local function addSection(tab, titleText, iconOptional)
         return rowObj
     end
 
+    sec.AddTextInput = function(self, cfg, ...)
+        return self:AddTextbox(cfg, ...)
+    end
+
     resize()
     return sec
 end
@@ -1594,7 +1605,7 @@ function Fluent:CreateWindow(o)
     end
 
     local w = {
-        Title = o.Title or "Liyhub",
+        Title = o.Title or o.Name or "Liyhub",
         SubTitle = o.Author or o.SubTitle or "",
         Size = size,
         Tabs = {},
@@ -2333,6 +2344,7 @@ function Fluent:CreateWindow(o)
     function w:Watermark(watermarkCfg)
         local dummyBlock = {
             SetText = function() end,
+            Set = function() end,
             Text = function() end,
             Input = function() end,
             SetVisible = function() end,
