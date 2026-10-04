@@ -1540,6 +1540,19 @@ local function addSection(tab, titleText, iconOptional)
         return self:AddTextbox(cfg, ...)
     end
 
+    sec.AddDivider = function(self)
+        local d = Instance.new("Frame")
+        d.Name = "Divider"
+        d.Size = UDim2.new(1, 0, 0, 1)
+        d.BackgroundColor3 = Fluent.CurrentTheme.Border
+        d.BackgroundTransparency = 0.7
+        d.BorderSizePixel = 0
+        d.LayoutOrder = #holder:GetChildren() + 2
+        d.Parent = holder
+        resize()
+        return d
+    end
+
     resize()
     return sec
 end
@@ -2308,6 +2321,9 @@ function Fluent:CreateWindow(o)
             table.insert(self.Elements, s)
             return s
         end
+        t.AddGroup = function(self, gopts)
+            return self:AddSection(gopts)
+        end
 
         if #self._tabs == 1 then t:Select() end
         return t
@@ -2330,11 +2346,28 @@ function Fluent:CreateWindow(o)
     end
 
     -- Hotkey Toggle Binding
+    w._toggleKey = o.MinimizeKey or Enum.KeyCode.RightControl
     UserInputService.InputBegan:Connect(function(i, gProc)
-        if not gProc and i.KeyCode == (o.MinimizeKey or Enum.KeyCode.RightControl) then
+        local toggleK = w._toggleKey or Enum.KeyCode.RightControl
+        if not gProc and i.KeyCode == toggleK then
             w:Toggle()
         end
     end)
+
+    -- Universal Script Compatibility Shims
+    function w:CreateSection(secOpt)
+        return self:AddTab(secOpt)
+    end
+    function w:AddTabLabel(label)
+        -- No-op visual category shim
+    end
+    function w:SetToggleKey(k)
+        if typeof(k) == "EnumItem" then
+            self._toggleKey = k
+        elseif type(k) == "string" and Enum.KeyCode[k] then
+            self._toggleKey = Enum.KeyCode[k]
+        end
+    end
 
     -- Compatibility Aliases for Notifications
     w.Notify = function(_, opt) return Fluent:Notify(opt) end
