@@ -1392,14 +1392,57 @@ local function addSection(tab, titleText, iconOptional)
 
     function sec:AddParagraph(o)
         o = o or {}
-        local f = makeElement(holder, o.Title or "", nil, math.max(56, TextService:GetTextSize(o.Content or "", 11, Enum.Font.Gotham, Vector2.new(500, 1000)).Y + 43))
-        local c = text(f, o.Content or "", 11, Fluent.CurrentTheme.SubText)
-        c.Position = UDim2.fromOffset(12, 30)
-        c.Size = UDim2.new(1, -24, 0, f.Size.Y.Offset - 35)
+        local pTitle = o.Title or ""
+        local pContent = o.Content or ""
+
+        local f = Instance.new("Frame")
+        f.BackgroundColor3 = Fluent.CurrentTheme.Surface2
+        f.BackgroundTransparency = 0.45
+        f.LayoutOrder = #holder:GetChildren() + 2
+        f.Parent = holder
+        corner(f, 8)
+        stroke(f, Fluent.CurrentTheme.Border, 0.3)
+
+        local tLbl = text(f, pTitle, 13, Fluent.CurrentTheme.Text)
+        tLbl.Position = UDim2.fromOffset(12, 10)
+        tLbl.Size = UDim2.new(1, -24, 0, 18)
+        tLbl.Font = Enum.Font.GothamBold
+
+        local cLbl = text(f, pContent, 11, Fluent.CurrentTheme.SubText)
+        cLbl.Position = UDim2.fromOffset(12, 34)
+        cLbl.Size = UDim2.new(1, -24, 0, 10)
+        cLbl.Font = Enum.Font.Gotham
+        cLbl.TextYAlignment = Enum.TextYAlignment.Top
+
+        local function updateSize()
+            local w = math.max(280, f.AbsoluteSize.X > 30 and (f.AbsoluteSize.X - 24) or 380)
+            local measured = TextService:GetTextSize(pContent, 11, Enum.Font.Gotham, Vector2.new(w, 2000))
+            local totalH = math.max(65, measured.Y + 46)
+            f.Size = UDim2.new(1, 0, 0, totalH)
+            cLbl.Size = UDim2.new(1, -24, 0, measured.Y + 6)
+            resize()
+        end
+
+        task.defer(updateSize)
+        f:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            if f.AbsoluteSize.X > 50 then
+                updateSize()
+            end
+        end)
+
         local e = {
             Frame = f,
+            SetTitle = function(_, newTitle)
+                pTitle = newTitle or ""
+                tLbl.Text = pTitle
+            end,
+            SetContent = function(_, newContent)
+                pContent = newContent or ""
+                cLbl.Text = pContent
+                updateSize()
+            end,
             SetSearch = function(_, q)
-                f.Visible = q == "" or string.find(string.lower((o.Title or "") .. " " .. (o.Content or "")), q, 1, true) ~= nil
+                f.Visible = q == "" or string.find(string.lower(pTitle .. " " .. pContent), q, 1, true) ~= nil
             end,
         }
         table.insert(sec.Elements, e)
