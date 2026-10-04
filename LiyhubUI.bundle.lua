@@ -79,9 +79,12 @@ local function safe(fn, ...)
 end
 
 local function tween(o, t, p)
-    local x = TweenService:Create(o, TweenInfo.new(t or 0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), p)
-    x:Play()
-    return x
+    local ok, x = pcall(function()
+        local tw = TweenService:Create(o, TweenInfo.new(t or 0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), p)
+        tw:Play()
+        return tw
+    end)
+    return (ok and x) or nil
 end
 
 local function corner(p, r)
@@ -148,12 +151,13 @@ local function button(p, s, h)
 end
 
 local function parentGui()
+    local lp = Players.LocalPlayer or LocalPlayer
+    if lp then
+        local pg = lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui", 5)
+        if pg then return pg end
+    end
     local ok, h = pcall(function() return gethui and gethui() end)
     if ok and h then return h end
-    local lp = Players.LocalPlayer
-    if lp and lp:FindFirstChild("PlayerGui") then
-        return lp.PlayerGui
-    end
     local okCg, cg = pcall(function() return CoreGui end)
     return (okCg and cg) or game:GetService("StarterGui")
 end
@@ -1841,12 +1845,16 @@ function Fluent:CreateWindow(o)
         icon.Parent = b
 
         b.MouseEnter:Connect(function()
-            tween(b, 0.1, { BackgroundColor3 = Fluent.CurrentTheme.Hover })
-            tween(icon, 0.1, { ImageColor3 = Fluent.CurrentTheme.Accent })
+            pcall(function()
+                tween(b, 0.1, { BackgroundColor3 = Fluent.CurrentTheme.Hover })
+                tween(icon, 0.1, { ImageColor3 = Fluent.CurrentTheme.Accent })
+            end)
         end)
         b.MouseLeave:Connect(function()
-            tween(b, 0.1, { BackgroundColor3 = Fluent.CurrentTheme.Surface })
-            tween(icon, 0.1, { ImageColor3 = Color3.fromRGB(245, 248, 255) })
+            pcall(function()
+                tween(b, 0.1, { BackgroundColor3 = Fluent.CurrentTheme.Surface })
+                tween(icon, 0.1, { ImageColor3 = Color3.fromRGB(245, 248, 255) })
+            end)
         end)
         b.MouseButton1Click:Connect(callback)
         return b, icon
@@ -1900,9 +1908,13 @@ function Fluent:CreateWindow(o)
     sl.Parent = sidebar
 
     local function updateSidebarCanvas()
-        sidebar.CanvasSize = UDim2.new(0, 0, 0, sl.AbsoluteContentSize.Y + 14)
+        pcall(function()
+            sidebar.CanvasSize = UDim2.new(0, 0, 0, sl.AbsoluteContentSize.Y + 14)
+        end)
     end
-    sl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateSidebarCanvas)
+    pcall(function()
+        sl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateSidebarCanvas)
+    end)
 
     -- Bottom-Left Neverlose User Profile Card
     local profileCard = Instance.new("Frame")
@@ -2219,9 +2231,13 @@ function Fluent:CreateWindow(o)
         t.IconElement = iconElement
 
         local function updatePageCanvas()
-            page.CanvasSize = UDim2.new(0, 0, 0, pl.AbsoluteContentSize.Y + 36)
+            pcall(function()
+                page.CanvasSize = UDim2.new(0, 0, 0, pl.AbsoluteContentSize.Y + 36)
+            end)
         end
-        pl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updatePageCanvas)
+        pcall(function()
+            pl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updatePageCanvas)
+        end)
 
         tb.MouseEnter:Connect(function()
             if self.ActiveTab ~= t then
