@@ -1,373 +1,365 @@
 # 🛡️ LiyhubUI Framework
 
-**LiyhubUI** adalah framework UI Roblox / Luau modern, berkinerja tinggi, dan ramah mobile yang dirancang untuk script executor (PC & Mobile) serta Roblox Studio. Menggabungkan estetika **Liyhub Obsidian Palette**, floating draggable pin button untuk mobile, dan kompatibilitas ganda (**Fluent & NeverLose API**).
+**LiyhubUI** adalah framework GUI Roblox / Luau modern, ultra-responsif, dan berkinerja tinggi yang dirancang untuk script executor (PC & Mobile touch devices) serta Roblox Studio. Framework ini menggabungkan estetika **Liyhub Obsidian Palette**, floating draggable pin widget untuk mobile, isolasi stealth (`gethui` / `CoreGui`), serta dukungan **Universal API Compatibility** (Fluent & NeverLose syntax native).
 
 ---
 
-## 🚀 Instant Loadstring
+## 🚀 Quickstart & Cara Pakai
 
-Muat LiyhubUI ke dalam script Anda dengan URL resmi:
+### 1. Bootstrap Loader Resmi
+Muat LiyhubUI langsung ke dalam script executor Anda menggunakan URL raw resmi:
 
 ```luau
 local Liyhub = loadstring(game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/LiyhubUI.bundle.luau"))()
 ```
 
----
+### 2. Boilerplate Skrip Standar
 
-## 🎨 Liyhub Obsidian Theme
-
-Palet tema default yang diinjeksi secara otomatis:
-- **Canvas / Background**: `#0A0A0D` (Deep Obsidian)
-- **Primary / Accent**: `#00A2FF` (Electric Liyhub Cyan)
-- **Active Toggle**: `#00E5FF` (Neon Cyan)
-- **Cards & Dialogs**: `#101015` / `#121217`
-- **Text**: `#FFFFFF` (Solid White) & `#8C91A5` (Secondary Muted)
-
----
-
-## 🔒 Arsitektur Keamanan & Proteksi GUI (Capability Safe)
-
-LiyhubUI secara internal menerapkan standar isolasi GUI yang aman dari error Roblox:
-1. **Prioritas PlayerGui & Executor Protection**:
-   - `ScreenGui` diposisikan di `Players.LocalPlayer.PlayerGui` dengan memanggil fungsi proteksi bawaan executor (`syn.protect_gui` / `protectgui`).
-   - Mencegah error crash `The current thread cannot access 'Instance' (lacking capability Plugin)` yang terjadi bila GUI dipaksa masuk ke `CoreGui` / `gethui` pada executor dengan thread capability terbatas.
-2. **Safe Event Listeners**:
-   - Seluruh listener `AbsoluteContentSize`, `MouseEnter`, `MouseLeave`, dan `TweenService:Create` dibungkus dalam `pcall` agar tidak pernah memicu runtime error yang menghentikan loop script.
-
----
-
-## 🤖 PANDUAN INTEGRASI KHUSUS AI (AI AGENT & DEVELOPER GUIDELINES)
-
-> [!IMPORTANT]
-> Setiap AI assistant atau developer yang membuat, mengedit, atau merefaktor script game yang menggunakan LiyhubUI **WAJIB** mengikuti hierarki dan aturan penempatan berikut agar tidak terjadi salah baca atau error runtime.
-
-### 1. Urutan Hierarki Script yang Benar (Strict Execution Order)
-
-Script game **HARUS** disusun dari atas ke bawah dengan urutan berikut:
-
-```text
-[1] Game Loaded Check       --> repeat task.wait() until game:IsLoaded()
-[2] Anti-Reexecution Guard  --> Cek flag running di getgenv, delay 0.3s, pcall destroy old window
-[3] Multi-tier UI Loader    --> Load LiyhubUI bundle -> fallback neverloseRemake -> fallback 4lpaca -> global
-[4] Fail-Safe Alert         --> Jika gagal load, kirim notifikasi StarterGui (JANGAN silent return!)
-[5] Compatibility Bridge    --> Pasang alias AddTextInput, pingBlock.Set, lbl.Set
-[6] Window Instantiation    --> Liyhub:CreateWindow({...})
-[7] Watermark & Mobile PIN  --> Setup watermark, FPS/Ping counter, dan toggle interface input
-[8] Notifier Setup          --> Liyhub:CreateNotification() & function SendNotification
-[9] Tab Creation            --> Window:AddTab({...})
-[10] Section Creation       --> Tab:AddSection({...})
-[11] Roblox Game Services   --> Players, RunService, TweenService, Workspace, dll.
-[12] Game State & Configs   --> Tabel konfigurasi (Config) & variabel status lokal
-[13] Core Functions & Logic --> Fungsi farming, combat, teleport, exploit loop
-[14] UI Controls Binding    --> Hubungkan AddToggle / AddSlider / AddDropdown ke fungsi logic
-[15] Active Event Loops     --> Heartbeat / RenderStepped / Task Loops
-```
-
----
-
-### 2. Template Header & Multi-tier Loader Standar (Copy-Paste Ready)
-
-```lua
+```luau
 repeat task.wait() until game:IsLoaded()
 
-local g = getgenv and getgenv() or _G
-
--- 1. Anti Re-execution
-if g.Liyhub_GameName_Running then
-    g.Liyhub_GameName_Running = false
+local g = (typeof(getgenv) == "function" and getgenv()) or _G
+if g.Liyhub_Game_Running then
+    g.Liyhub_Game_Running = false
     task.wait(0.3)
 end
-g.Liyhub_GameName_Running = true
+g.Liyhub_Game_Running = true
 
--- 2. Cleanup Old Window
-local oldWindow = g.Liyhub_GameName_Window
-if oldWindow and type(oldWindow.Destroy) == "function" then
-    pcall(function() oldWindow:Destroy() end)
-end
-
--- 3. Multi-tier Robust UI Loader
-local Liyhub = nil
-
-pcall(function()
-    local raw = game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/LiyhubUI.bundle.luau")
-    if raw and #raw > 100 then
-        Liyhub = loadstring(raw)()
-    end
-end)
-
-if not Liyhub or type(Liyhub.CreateWindow) ~= "function" then
-    pcall(function()
-        local raw = game:HttpGet("https://raw.githubusercontent.com/thantzy/DummyUI/refs/heads/main/neverloseRemake.lua")
-        if raw and #raw > 100 then
-            Liyhub = loadstring(raw)()
-        end
-    end)
-end
-
-if not Liyhub or type(Liyhub.CreateWindow) ~= "function" then
-    pcall(function()
-        local raw = game:HttpGet("https://raw.githubusercontent.com/4lpaca-pin/NeverLose/refs/heads/main/source.luau")
-        if raw and #raw > 100 then
-            Liyhub = loadstring(raw)()
-        end
-    end)
-end
-
-if not Liyhub or type(Liyhub.CreateWindow) ~= "function" then
-    Liyhub = (getgenv and (getgenv().Liyhub or getgenv().NeverLose)) or _G.Liyhub or _G.NeverLose or (shared and (shared.Liyhub or shared.NeverLose))
-end
-
--- 4. Fail-Safe Alert (No Silent Return!)
-if not Liyhub or type(Liyhub.CreateWindow) ~= "function" then
-    warn("[LIYHUB] Failed to load UI Library!")
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "LIYHUB Error",
-            Text = "Failed to load UI Library. Check network / executor HTTP.",
-            Duration = 6
-        })
-    end)
-    return
-end
-
--- 5. Universal Compatibility Bridge (NeverLose <-> Fluent Polyfill)
-if not Liyhub._LiyhubCompatApplied then
-    Liyhub._LiyhubCompatApplied = true
-    local origCreateWindow = Liyhub.CreateWindow
-    Liyhub.CreateWindow = function(self, opt)
-        local win = origCreateWindow(self, opt)
-        if win and win.AddTab then
-            local origAddTab = win.AddTab
-            win.AddTab = function(wSelf, to, iconOpt)
-                local tab = origAddTab(wSelf, to, iconOpt)
-                if tab and tab.AddSection then
-                    local origAddSection = tab.AddSection
-                    tab.AddSection = function(tSelf, secOpt, sIcon)
-                        local sec = origAddSection(tSelf, secOpt, sIcon)
-                        if sec then
-                            if not sec.AddTextInput and sec.AddTextbox then
-                                sec.AddTextInput = function(s, cfg, ...) return s:AddTextbox(cfg, ...) end
-                            end
-                            if sec.AddLabel then
-                                local origAddLabel = sec.AddLabel
-                                sec.AddLabel = function(s, lOpt, ...)
-                                    local lbl = origAddLabel(s, lOpt, ...)
-                                    if lbl and type(lbl) == "table" then
-                                        if not lbl.AddTextInput and lbl.AddTextbox then
-                                            lbl.AddTextInput = function(lSelf, cfg) return lSelf:AddTextbox(cfg) end
-                                        end
-                                        if not lbl.Set and lbl.SetText then
-                                            lbl.Set = function(lSelf, val) return lSelf:SetText(val) end
-                                        end
-                                    end
-                                    return lbl
-                                end
-                            end
-                        end
-                        return sec
-                    end
-                end
-                return tab
-            end
-        end
-        if win and win.Watermark then
-            local origWatermark = win.Watermark
-            win.Watermark = function(wSelf, wOpt)
-                local wm = origWatermark(wSelf, wOpt)
-                if wm and wm.AddBlock then
-                    local origAddBlock = wm.AddBlock
-                    wm.AddBlock = function(wmSelf, icon, text)
-                        local blk = origAddBlock(wmSelf, icon, text)
-                        if blk and type(blk) == "table" then
-                            if not blk.Set and blk.SetText then
-                                blk.Set = function(bSelf, val) return bSelf:SetText(val) end
-                            end
-                            if not blk.Input then
-                                blk.Input = function() end
-                            end
-                        end
-                        return blk
-                    end
-                end
-                return wm
-            end
-        end
-        return win
-    end
-end
-```
-
----
-
-### 3. Setup Window, Watermark, & Notifier
-
-```lua
-local uis = game:GetService("UserInputService")
-local isMobile = uis.TouchEnabled and not uis.KeyboardEnabled
+local Liyhub = loadstring(game:HttpGet("https://raw.githubusercontent.com/loizs1/LiyhubUI/main/LiyhubUI.bundle.luau"))()
 
 local Window = Liyhub:CreateWindow({
-    Title = "LIYHUB | Game Name",
-    Name = "LIYHUB | Game Name",
-    Content = "Game Automation By LIYHUB",
-    Size = isMobile and UDim2.fromOffset(580, 430) or UDim2.fromOffset(740, 490),
-    ConfigFolder = "LIYHUB_GameName_Config",
+    Title = "Liyhub | Game Title",
+    SubTitle = "by Liyhub Team",
+    Size = UDim2.fromOffset(740, 490),
+    ConfigFolder = "Liyhub_GameConfig",
     AutoConfig = true,
-    Keybind = "Insert"
+    MinimizeKey = Enum.KeyCode.RightControl
 })
-g.Liyhub_GameName_Window = Window
 
--- Watermark & Mobile Floating Toggle Button
-local Watermark = nil
-local pingBlock = { Set = function() end }
-local uiToggleBlock = { Input = function() end }
+local MainTab = Window:AddTab("Combat", "🎯")
+local Sec = MainTab:AddSection({ Name = "Main Features", Icon = "⚡" })
 
-pcall(function()
-    if Window and type(Window.Watermark) == "function" then
-        Watermark = Window:Watermark()
-        if Watermark and type(Watermark.AddBlock) == "function" then
-            pingBlock = Watermark:AddBlock("chart-four-vertical-bars", "0MS")
-            uiToggleBlock = Watermark:AddBlock("cube-vertexes", "LIYHUB")
-            uiToggleBlock:Input(function()
-                if Window and type(Window.ToggleInterface) == "function" then
-                    Window:ToggleInterface()
-                end
-            end)
-        end
-    end
-end)
-
--- Notifier Helper (Mendukung .new dan :Notify)
-local Notifier = nil
-pcall(function()
-    Notifier = Liyhub:CreateNotification()
-end)
-
-local function SendNotification(title, content, duration)
-    duration = duration or 3
-    pcall(function()
-        if Notifier and type(Notifier.new) == "function" then
-            Notifier.new({
-                Title = title or "LIYHUB",
-                Content = tostring(content or ""),
-                Duration = duration
-            })
-        elseif Notifier and type(Notifier.Notify) == "function" then
-            Notifier:Notify({
-                Title = title or "LIYHUB",
-                Content = tostring(content or ""),
-                Duration = duration
-            })
-        else
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = title or "LIYHUB",
-                Text = tostring(content or ""),
-                Duration = duration
-            })
-        end
-    end)
-end
-```
-
----
-
-### 4. Contoh Komponen UI
-
-#### Gaya 1: Direct Method (Fluent / Standar)
-```lua
-local Tab = Window:AddTab({ Name = "Main", Icon = "home", Type = "Double" })
-local Sec = Tab:AddSection({ Name = "Farming", Position = "left" })
-
--- Toggle
 Sec:AddToggle({
-    Name = "Auto Farm",
+    Name = "Auto Attack",
+    Desc = "Menyerang musuh terdekat secara otomatis.",
     Default = false,
-    Callback = function(val)
-        Config.AutoFarm = val
-    end,
-    Flag = "AutoFarmToggle"
-})
-
--- Slider
-Sec:AddSlider({
-    Name = "WalkSpeed",
-    Min = 16,
-    Max = 300,
-    Default = 16,
-    Callback = function(val)
-        Config.Speed = val
-    end,
-    Flag = "SpeedSlider"
-})
-
--- Dropdown
-Sec:AddDropdown({
-    Name = "Target Mob",
-    Values = { "Goblin", "Orc", "Dragon" },
-    Default = "Goblin",
-    Callback = function(v)
-        Config.TargetMob = v
+    Callback = function(state: boolean)
+        -- Logika fitur (Zero print di callback)
     end
 })
 
--- Textbox
-Sec:AddTextbox({
-    Name = "Player Target",
-    Placeholder = "Enter player name...",
-    Default = "",
-    Callback = function(txt)
-        Config.TargetPlayer = txt
-    end
-})
-
--- Button
-Sec:AddButton({
-    Name = "Teleport Spawn",
-    Callback = function()
-        TeleportToSpawn()
-    end
-})
-```
-
-#### Gaya 2: NeverLose Chained Label Method (Didukung via Bridge)
-```lua
--- Toggle di bawah Label
-Sec:AddLabel("Auto Farm Coins"):AddToggle({
-    Default = false,
-    Callback = function(val) end,
-    Flag = "AutoCoinsToggle"
-})
-
--- Slider di bawah Label
-Sec:AddLabel("Attack Delay (s)"):AddSlider({
-    Min = 0.1,
-    Max = 2.0,
-    Default = 0.5,
-    Callback = function(val) end
-})
-
--- Text Input di bawah Label (Otomatis dialiaskan ke AddTextbox via Bridge)
-Sec:AddLabel("Code Input"):AddTextInput({
-    Default = "",
-    Placeholder = "Enter code...",
-    Callback = function(text) end
+Liyhub:Notify({
+    Title = "Liyhub",
+    Content = "Script loaded successfully!",
+    Duration = 3,
+    Type = "Success"
 })
 ```
 
 ---
 
-### 5. DAFTAR LARANGAN KERAS UNTUK AI (CRITICAL ANTI-PATTERNS)
+## 🎨 Liyhub Obsidian Theme & Fitur Utama
 
-1. ❌ **JANGAN PERNAH menyuntikkan kode string (`string.sub` / `string.find`) ke fungsi `parentGui()`**.
-   - `LiyhubUI.bundle.luau` sudah otomatis memprioritaskan `PlayerGui` dan memeriksa executor safety. Monkey-patch string hanya akan merusak parser.
-2. ❌ **JANGAN PERNAH menimpa `getgenv().gethui` secara global**.
-   - Menimpa `gethui` merusak isolasi GUI executor dan menyebabkan memory leak atau error pada script lain.
-3. ❌ **JANGAN PERNAH mencantumkan URL lokal `http://127.0.0.1:9876`**.
-   - Port 9876 adalah port lokal pengujian developer. Pemain umum tidak membuka port ini, sehingga menyebabkan HTTP timeout/freeze.
-4. ❌ **JANGAN PERNAH melakukan `silent return` tanpa notifikasi**.
-   - Jika UI gagal dimuat karena kendala jaringan executor, selalu panggil `StarterGui:SetCore("SendNotification", ...)` agar pemain tahu alasan UI tidak muncul.
-5. ❌ **JANGAN PERNAH menambahkan `setfenv(1, ...)` di awal script**.
-   - Memutus lingkungan global executor dan mematikan optimasi bytecode Luau.
-6. ❌ **JANGAN panggil `pingBlock:Set(...)` tanpa bridge alias**.
-   - Di LiyhubUI, watermark menggunakan `.SetText`. Selalu gunakan bridge compatibility yang mengaliaskan `.Set` ke `.SetText`.
-7. ❌ **JANGAN merusak gameplay logic saat merefaktor UI**.
-   - Pekerjaan UI hanya boleh menyentuh header, inisialisasi window, dan binding elemen. Logika pergerakan, farming, dan combat harus tetap utuh.
+- **Procedural Monogram Logo**: Logo kurva L-gradient dengan celestial orb cyan procedural (tidak memerlukan external `rbxassetid` yang rentan terhapus).
+- **Mobile Floating Draggable Pin Widget**: Otomatis aktif saat window di-minimize `[-]` atau pin `[📌]`. Dapat digeser bebas di layar dan posisi tersimpan otomatis.
+- **Stealth & Anti-Detection**:
+  - GUI diisolasi langsung ke `gethui()` $\rightarrow$ `CoreGui` $\rightarrow$ fallback `PlayerGui`.
+  - Terproteksi dari pemindaian skrip game lokal (`ScreenGui` tidak dapat diinspeksi oleh skrip game biasa).
+  - Standar **Zero `print()`** di dalam callback widget untuk menghindari deteksi via `LogService.MessageOut`.
+- **Search System Cepat**: Filter pencarian elemen real-time terintegrasi dengan debounce 120ms (bebas stutter di mobile).
+- **Built-in Profile Manager (Config System)**: Sistem konfigurasi otomatis berbasis JSON di `Liyhub/Configs` (Create, Save, Load, Delete).
+
+---
+
+## 📦 Kelengkapan UI & API Reference Lengkap
+
+### 1. Window (`Liyhub:CreateWindow`)
+Membuat window utama framework.
+
+```luau
+local Window = Liyhub:CreateWindow({
+    Title = "Liyhub | Universal",     -- Judul utama window
+    SubTitle = "v2.5",                 -- Sub-judul / author
+    Size = UDim2.fromOffset(740, 490), -- Ukuran default (otomatis diklem jika mobile)
+    TabWidth = 160,                    -- Lebar panel navigasi tab (default: 145-180)
+    ConfigFolder = "Liyhub_MyGame",    -- Folder penyimpan file konfigurasi
+    AutoConfig = true,                 -- Otomatis load profile default saat start
+    MinimizeKey = Enum.KeyCode.RightControl -- Tombol keyboard toggle UI
+})
+```
+
+**Window Methods**:
+- `Window:Toggle()` / `Window:ToggleInterface()`: Menampilkan / menyembunyikan window.
+- `Window:Minimize()`: Menyembunyikan window dan menampilkan floating pill widget.
+- `Window:Open()`: Membuka kembali window dari status minimize.
+- `Window:Destroy()` / `Window:Close()`: Menghapus GUI dari memori.
+- `Window:SetDevicePreset(preset)`: Mengubah ukuran preset (`"PC"`, `"Mobile"`, `"Tablet"`, `"Mini"`).
+- `Window:SetToggleKey(keyCode)`: Mengubah hotkey toggle window saat runtime.
+- `Window:CreateSection(opt)`: Alias kompatibilitas universal ke `Window:AddTab`.
+- `Window:Watermark()`: Membuat objek watermark (FPS, Ping, dsb.).
+
+---
+
+### 2. Tab (`Window:AddTab`)
+Menambahkan tab navigasi ke sidebar.
+
+```luau
+-- Format 1: Table Config
+local Tab = Window:AddTab({
+    Name = "Farming",
+    Icon = "wheat", -- Nama ikon Lucide atau teks emoji
+    Type = "Double" -- Layout kolom
+})
+
+-- Format 2: Shorthand
+local Tab = Window:AddTab("Farming", "🌾")
+```
+
+**Tab Methods**:
+- `Tab:AddSection(cfg)`: Menambahkan kartu section ke dalam tab.
+- `Tab:AddGroup(cfg)`: Alias universal untuk `AddSection`.
+- `Tab:Select()`: Membuka tab ini secara terprogram.
+
+---
+
+### 3. Section (`Tab:AddSection`)
+Section adalah container kartu untuk mengelompokkan elemen UI.
+
+```luau
+local Sec = Tab:AddSection({
+    Name = "Targeting & Aim",
+    Icon = "crosshair", -- Opsional
+    Position = "left"   -- "left" | "right"
+})
+```
+
+---
+
+### 4. Elemen & Widget Suite
+
+#### A. Toggle (`Sec:AddToggle`)
+Saklar on/off modern dengan indikator cyan berkontras tinggi.
+
+```luau
+local myToggle = Sec:AddToggle({
+    Name = "Silent Aim",
+    Desc = "Mengarahkan tembakan otomatis ke target.", -- Opsional
+    Default = false,
+    Flag = "SilentAimFlag", -- Key simpanan konfigurasi
+    Callback = function(state: boolean)
+        -- logic saat state true / false
+    end
+})
+
+-- Update nilai secara dinamis:
+myToggle:SetValue(true)
+```
+
+#### B. Slider (`Sec:AddSlider`)
+Slider presisi dengan dragging halus dan dukungan desimal.
+
+```luau
+local mySlider = Sec:AddSlider({
+    Name = "Hit Chance",
+    Desc = "Persentase akurasi tembakan",
+    Min = 0,
+    Max = 100,
+    Default = 85,
+    Decimals = 1, -- Jumlah angka di belakang koma (opsional)
+    Flag = "HitChanceFlag",
+    Callback = function(value: number)
+        -- logic
+    end
+})
+
+-- Update nilai slider:
+mySlider:SetValue(90)
+```
+
+#### C. Dropdown Single-Select (`Sec:AddDropdown`)
+Menu pilihan tunggal dengan pop-up list pencarian.
+
+```luau
+local myDropdown = Sec:AddDropdown({
+    Name = "Target Bone",
+    Options = { "Head", "HumanoidRootPart", "UpperTorso", "Random" },
+    Default = "Head",
+    Flag = "TargetBoneFlag",
+    Callback = function(selected: string)
+        -- logic
+    end
+})
+
+-- Update pilihan atau list opsi:
+myDropdown:SetValue("HumanoidRootPart")
+myDropdown:SetValues({ "Head", "Torso", "Random" })
+```
+
+#### D. MultiDropdown (`Sec:AddMultiDropdown`)
+Menu pilihan ganda (multi-selection).
+
+```luau
+local multiDrop = Sec:AddMultiDropdown({
+    Name = "Target Filter",
+    Options = { "Players", "NPCs", "Friends", "Guards" },
+    Default = { "Players", "NPCs" },
+    Flag = "TargetFilterFlag",
+    Callback = function(selectedTable: { [string]: boolean })
+        -- logic
+    end
+})
+```
+
+#### E. Textbox / TextInput (`Sec:AddTextbox` / `Sec:AddTextInput`)
+Kotak input teks pengguna.
+
+```luau
+local myInput = Sec:AddTextbox({
+    Name = "Player Username",
+    Placeholder = "Ketik username target...",
+    Default = "",
+    Flag = "TargetPlayerFlag",
+    Callback = function(text: string)
+        -- logic
+    end
+})
+
+-- Alias: Sec:AddTextInput didukung secara native.
+```
+
+#### F. Dual-Widget Row (`Sec:AddRow`)
+Menyusun dua widget berdampingan 50/50 secara simetris (anti-potong layar mobile).
+
+```luau
+local row = Sec:AddRow()
+
+row:AddToggle({
+    Name = "Auto Parry",
+    Default = false,
+    Callback = function(state: boolean) end
+})
+
+row:AddKeybind({
+    Name = "Shortcut",
+    Default = Enum.KeyCode.F,
+    Callback = function(key: Enum.KeyCode) end
+})
+```
+
+#### G. Button (`Sec:AddButton`)
+Tombol interaktif dengan efek micro-animation hover & click.
+
+```luau
+Sec:AddButton({
+    Name = "Teleport to Safezone",
+    Callback = function()
+        -- logic teleportasi
+    end
+})
+```
+
+#### H. Keybind (`Sec:AddKeybind`)
+Input pengikatan shortcut keyboard.
+
+```luau
+local myKey = Sec:AddKeybind({
+    Name = "Panic Keybind",
+    Default = Enum.KeyCode.X,
+    Callback = function(key: Enum.KeyCode)
+        -- logic saat tombol ditekan
+    end
+})
+```
+
+#### I. ColorPicker (`Sec:AddColorPicker`)
+Color picker visual RGB dengan selector slider.
+
+```luau
+local myColor = Sec:AddColorPicker({
+    Name = "ESP Color",
+    Default = Color3.fromRGB(0, 162, 255),
+    Callback = function(col: Color3)
+        -- logic update warna
+    end
+})
+```
+
+#### J. Label (`Sec:AddLabel`)
+Label teks informatif yang juga mendukung chaining method gaya NeverLose.
+
+```luau
+local myLabel = Sec:AddLabel("Status: Running")
+
+-- Ubah teks saat runtime:
+myLabel:SetText("Status: Paused")
+myLabel:Set("Status: Paused") -- Alias native
+
+-- Chaining Sub-widgets di bawah Label (Native Polyfill):
+myLabel:AddToggle({ Default = false, Callback = function(s) end })
+myLabel:AddSlider({ Min = 1, Max = 10, Default = 5, Callback = function(v) end })
+myLabel:AddTextbox({ Placeholder = "Value...", Callback = function(t) end })
+myLabel:AddDropdown({ Options = { "A", "B" }, Callback = function(o) end })
+```
+
+#### K. Paragraph (`Sec:AddParagraph`)
+Blok kartu deskripsi dengan auto-wrap teks panjang.
+
+```luau
+Sec:AddParagraph({
+    Title = "Security Protocol",
+    Content = "Script ini menggunakan proteksi bypass packet tingkat lanjut. Jangan menyalakan fitur teleportasi saat berada di area PvP publik."
+})
+```
+
+#### L. Divider (`Sec:AddDivider`)
+Garis pemisah elegan di dalam section untuk merapikan layout.
+
+```luau
+Sec:AddDivider()
+```
+
+---
+
+### 5. Notification System (`Liyhub:Notify`)
+Toast notification floating di sudut layar dengan ikon dan warna jenis alert.
+
+```luau
+Liyhub:Notify({
+    Title = "Teleport",
+    Content = "Berhasil berpindah ke Area 5.",
+    Duration = 3,       -- Durasi tampil (detik)
+    Type = "Success"    -- "Success" | "Info" | "Warning"
+})
+```
+
+Dukungan format instansiasi objek juga tersedia:
+```luau
+local Notifier = Liyhub:CreateNotification()
+Notifier:Notify({ Title = "Alert", Content = "Pesan masuk", Duration = 2.5 })
+```
+
+---
+
+## 🔄 Universal Cross-Library Compatibility
+
+LiyhubUI dirancang agar skrip-skrip legacy (baik yang awalnya ditulis untuk **NeverLose**, **Rayfield**, maupun **Fluent**) dapat langsung berjalan tanpa perlu menulis adapter tambahan di skrip game Anda.
+
+| Metode Asal | Alias Native di LiyhubUI | Fungsi |
+|---|---|---|
+| `sec:AddTextInput(...)` | `sec:AddTextbox(...)` | Input text box |
+| `lbl:AddTextInput(...)` | `sec:AddTextbox(...)` | Chained text input |
+| `lbl:Set("teks")` | `lbl:SetText("teks")` | Update string label |
+| `tab:AddGroup(...)` | `tab:AddSection(...)` | Membuat grouping container |
+| `win:CreateSection(...)` | `win:AddTab(...)` | Membuat tab/section utama |
+| `win:SetToggleKey(...)` | `win._toggleKey = k` | Mengatur shortcut toggle |
+| `sec:AddDivider()` | Native line separator | Garis pemisah elemen |
+| `dummyBlock:Set(...)` | `dummyBlock:SetText(...)` | Sinkronisasi watermark |
+
+---
+
+## 🛡️ Anti-Patterns & Best Practices
+
+1. ❌ **Hindari `print()` di Callback**: Jangan letakkan perintah `print()` di dalam callback tombol/toggle/slider agar tidak tertangkap oleh `LogService` anticheat game.
+2. ❌ **Jangan gunakan `_G`**: Gunakan `getgenv()` secara konsisten untuk menyimpan state global antar eksekusi.
+3. ❌ **Jangan hardcode `rbxassetid://` untuk Logo**: LiyhubUI menggunakan monogram vektor procedural. Jangan menambahkan logo eksternal yang membebani memori.
+4. ✅ **Bungkus Loop dengan `task.spawn`**: Pastikan looping otomasi berjalan asinkron dan selalu berikan delay `task.wait()` yang wajar agar FPS pemain tetap stabil.
