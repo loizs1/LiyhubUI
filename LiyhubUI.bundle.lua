@@ -151,15 +151,15 @@ local function button(p, s, h)
 end
 
 local function parentGui()
-    local ok, h = pcall(function() return gethui and gethui() end)
-    if ok and h then return h end
-    local okCg, cg = pcall(function() return CoreGui end)
-    if okCg and cg then return cg end
     local lp = Players.LocalPlayer or LocalPlayer
     if lp then
         local pg = lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui", 5)
         if pg then return pg end
     end
+    local ok, h = pcall(function() return gethui and gethui() end)
+    if ok and h then return h end
+    local okCg, cg = pcall(function() return CoreGui end)
+    if okCg and cg then return cg end
     return game:GetService("StarterGui")
 end
 
@@ -476,17 +476,21 @@ local function addSection(tab, titleText, iconOptional)
 
     local function resize()
         task.defer(function()
-            if not holder or not holder.Parent then return end
-            holder.Size = UDim2.new(1, 0, 0, list.AbsoluteContentSize.Y + 16)
-            if tab and tab.Page then
-                local pl = tab.Page:FindFirstChildOfClass("UIListLayout")
-                if pl then
-                    tab.Page.CanvasSize = UDim2.new(0, 0, 0, pl.AbsoluteContentSize.Y + 36)
+            pcall(function()
+                if not holder or not holder.Parent or not list or not list.Parent then return end
+                holder.Size = UDim2.new(1, 0, 0, list.AbsoluteContentSize.Y + 16)
+                if tab and tab.Page and tab.Page.Parent then
+                    local pl = tab.Page:FindFirstChildOfClass("UIListLayout")
+                    if pl then
+                        tab.Page.CanvasSize = UDim2.new(0, 0, 0, pl.AbsoluteContentSize.Y + 36)
+                    end
                 end
-            end
+            end)
         end)
     end
-    list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
+    pcall(function()
+        list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
+    end)
     sec.Resize = resize
 
     function sec:SetSearch(q)
@@ -1755,16 +1759,20 @@ function Fluent:CreateWindow(o)
     end)
 
     -- Dynamic Screen Viewport Adaptor
-    if cam then
-        cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-            if not main or not main.Parent then return end
-            local newVp = cam.ViewportSize
-            if isMobile and (main.AbsoluteSize.X > newVp.X - 20 or main.AbsoluteSize.Y > newVp.Y - 20) then
-                local nw = math.clamp(main.AbsoluteSize.X, 420, math.max(newVp.X - 24, 420))
-                local nh = math.clamp(main.AbsoluteSize.Y, 300, math.max(newVp.Y - 24, 300))
-                main.Size = UDim2.fromOffset(nw, nh)
-                w.Size = main.Size
-            end
+    if cam and gui then
+        pcall(function()
+            cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+                pcall(function()
+                    if not gui or not gui.Parent or not main or not main.Parent then return end
+                    local newVp = cam.ViewportSize
+                    if isMobile and (main.AbsoluteSize.X > newVp.X - 20 or main.AbsoluteSize.Y > newVp.Y - 20) then
+                        local nw = math.clamp(main.AbsoluteSize.X, 420, math.max(newVp.X - 24, 420))
+                        local nh = math.clamp(main.AbsoluteSize.Y, 300, math.max(newVp.Y - 24, 300))
+                        main.Size = UDim2.fromOffset(nw, nh)
+                        w.Size = main.Size
+                    end
+                end)
+            end)
         end)
     end
 
