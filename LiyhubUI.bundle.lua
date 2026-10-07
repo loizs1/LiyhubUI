@@ -493,6 +493,58 @@ local function addSection(tab, titleText, iconOptional)
     end)
     sec.Resize = resize
 
+    local function wrapElement(e, f)
+        e = e or {}
+        e.Frame = f or e.Frame
+        e.Instance = (f and f:FindFirstChildOfClass("TextLabel")) or f or e.Instance
+        local mt = {
+            __index = function(tbl, key)
+                if type(key) ~= "string" then return rawget(tbl, key) end
+                local lk = string.lower(key)
+                if lk == "settext" or lk == "settitle" or lk == "set" or lk == "text" then
+                    return function(self, val)
+                        if rawget(tbl, "SetValue") then tbl:SetValue(val) end
+                        if rawget(tbl, "SetText") then tbl:SetText(val) end
+                        pcall(function()
+                            if tbl.Instance and tbl.Instance:IsA("TextLabel") then
+                                tbl.Instance.Text = tostring(val or "")
+                            end
+                        end)
+                        return self
+                    end
+                elseif lk == "setvalue" or lk == "setstate" or lk == "update" then
+                    return function(self, val)
+                        if rawget(tbl, "SetValue") then return tbl:SetValue(val) end
+                        return self
+                    end
+                elseif lk == "getvalue" or lk == "getstate" or lk == "get" then
+                    return function(self)
+                        if rawget(tbl, "GetValue") then return tbl:GetValue() end
+                        return tbl.Value or tbl.State
+                    end
+                elseif lk == "setvisible" or lk == "visible" then
+                    return function(self, val)
+                        if tbl.Frame then tbl.Frame.Visible = val ~= false end
+                        return self
+                    end
+                elseif lk == "tooltip" then
+                    return function(self, ...) return self end
+                elseif lk == "destroy" then
+                    return function(self)
+                        pcall(function() if tbl.Frame then tbl.Frame:Destroy() end end)
+                    end
+                elseif sec and sec[key] then
+                    return function(self, ...)
+                        return sec[key](sec, ...)
+                    end
+                end
+                return function(self, ...) return self end
+            end
+        }
+        setmetatable(e, mt)
+        return e
+    end
+
     function sec:SetSearch(q)
         for _, e in ipairs(self.Elements) do
             if e.SetSearch then e:SetSearch(q) end
@@ -513,6 +565,7 @@ local function addSection(tab, titleText, iconOptional)
                 f.Visible = q == "" or string.find(string.lower(o.Title or o.Name or ""), q, 1, true) ~= nil
             end,
         }
+        wrapElement(e, f)
         table.insert(sec.Elements, e)
         return e
     end
@@ -555,6 +608,7 @@ local function addSection(tab, titleText, iconOptional)
             end,
         }
         Fluent.Options[flag] = e
+        wrapElement(e, f)
         table.insert(sec.Elements, e)
         return e
     end
@@ -679,6 +733,7 @@ local function addSection(tab, titleText, iconOptional)
             end,
         }
         Fluent.Options[flag] = e
+        wrapElement(e, f)
         table.insert(sec.Elements, e)
         return e
     end
@@ -1017,6 +1072,7 @@ local function addSection(tab, titleText, iconOptional)
             end,
         }
         Fluent.Options[flag] = e
+        wrapElement(e, f)
         table.insert(sec.Elements, e)
         return e
     end
@@ -1080,6 +1136,7 @@ local function addSection(tab, titleText, iconOptional)
             end,
         }
         Fluent.Options[flag] = e
+        wrapElement(e, f)
         table.insert(sec.Elements, e)
         return e
     end
@@ -1168,6 +1225,7 @@ local function addSection(tab, titleText, iconOptional)
             end,
         }
         Fluent.Options[flag] = e
+        wrapElement(e, f)
         table.insert(sec.Elements, e)
         return e
     end
@@ -1386,6 +1444,7 @@ local function addSection(tab, titleText, iconOptional)
             end,
         }
         Fluent.Options[flag] = e
+        wrapElement(e, f)
         table.insert(sec.Elements, e)
         return e
     end
@@ -1445,6 +1504,7 @@ local function addSection(tab, titleText, iconOptional)
                 f.Visible = q == "" or string.find(string.lower(pTitle .. " " .. pContent), q, 1, true) ~= nil
             end,
         }
+        wrapElement(e, f)
         table.insert(sec.Elements, e)
         return e
     end
@@ -1454,6 +1514,7 @@ local function addSection(tab, titleText, iconOptional)
         local f = makeElement(holder, title, nil, 36)
         local lbl = f:FindFirstChildOfClass("TextLabel")
         local e = {
+            Instance = lbl,
             Frame = f,
             Title = title,
             SetText = function(_, newText)
@@ -1498,6 +1559,7 @@ local function addSection(tab, titleText, iconOptional)
                 self:SetText(newText)
             end,
         }
+        wrapElement(e, f)
         table.insert(sec.Elements, e)
         return e
     end
@@ -1586,6 +1648,29 @@ local function addSection(tab, titleText, iconOptional)
     sec.AddTextInput = function(self, cfg, ...)
         return self:AddTextbox(cfg, ...)
     end
+
+    sec.Label = function(self, ...) return self:AddLabel(...) end
+    sec.CreateLabel = function(self, ...) return self:AddLabel(...) end
+    sec.Toggle = function(self, ...) return self:AddToggle(...) end
+    sec.CreateToggle = function(self, ...) return self:AddToggle(...) end
+    sec.Slider = function(self, ...) return self:AddSlider(...) end
+    sec.CreateSlider = function(self, ...) return self:AddSlider(...) end
+    sec.Dropdown = function(self, ...) return self:AddDropdown(...) end
+    sec.CreateDropdown = function(self, ...) return self:AddDropdown(...) end
+    sec.Button = function(self, ...) return self:AddButton(...) end
+    sec.CreateButton = function(self, ...) return self:AddButton(...) end
+    sec.Paragraph = function(self, ...) return self:AddParagraph(...) end
+    sec.CreateParagraph = function(self, ...) return self:AddParagraph(...) end
+    sec.Keybind = function(self, ...) return self:AddKeybind(...) end
+    sec.CreateKeybind = function(self, ...) return self:AddKeybind(...) end
+    sec.ColorPicker = function(self, ...) return self:AddColorPicker(...) end
+    sec.CreateColorPicker = function(self, ...) return self:AddColorPicker(...) end
+    sec.Colorpicker = function(self, ...) return self:AddColorPicker(...) end
+    sec.CreateColorpicker = function(self, ...) return self:AddColorPicker(...) end
+    sec.TextBox = function(self, ...) return self:AddTextbox(...) end
+    sec.CreateTextBox = function(self, ...) return self:AddTextbox(...) end
+    sec.Textbox = function(self, ...) return self:AddTextbox(...) end
+    sec.CreateTextbox = function(self, ...) return self:AddTextbox(...) end
 
     sec.AddDivider = function(self)
         local d = Instance.new("Frame")
@@ -2420,6 +2505,32 @@ function Fluent:CreateWindow(o)
         end
     end
 
+    -- Universal Window Method Aliases
+    w.CreateTab = function(self, ...) return self:AddTab(...) end
+    w.Tab = function(self, ...) return self:AddTab(...) end
+    w.AddSection = function(self, ...) return self:AddTab(...) end
+    w.Section = function(self, ...) return self:AddTab(...) end
+    w.Group = function(self, ...) return self:AddTab(...) end
+    w.AddGroup = function(self, ...) return self:AddTab(...) end
+    w.CreateNotification = function(self, ...) return Fluent:CreateNotification(...) end
+    w.Notification = function(self, ...) return Fluent:Notify(...) end
+
+    local winMT = {
+        __index = function(tbl, key)
+            if type(key) ~= "string" then return rawget(tbl, key) end
+            local lk = string.lower(key)
+            if string.find(lk, "tab") then
+                return function(self, ...) return self:AddTab(...) end
+            elseif string.find(lk, "section") or string.find(lk, "group") then
+                return function(self, ...) return self:AddTab(...) end
+            elseif string.find(lk, "notify") or string.find(lk, "notification") then
+                return function(self, ...) return Fluent:Notify(...) end
+            end
+            return function(self, ...) return self end
+        end
+    }
+    setmetatable(w, winMT)
+
     -- Compatibility Aliases for Notifications
     w.Notify = function(_, opt) return Fluent:Notify(opt) end
     w.MakeNotify = function(_, opt) return Fluent:Notify(opt) end
@@ -2968,7 +3079,23 @@ function Fluent:Notify(o)
     return f
 end
 
+Fluent.CreateWindow = Fluent.CreateWindow
+Fluent.Create = Fluent.CreateWindow
+Fluent.Window = Fluent.CreateWindow
+Fluent.New = Fluent.CreateWindow
+Fluent.Init = Fluent.CreateWindow
+Fluent.MakeWindow = Fluent.CreateWindow
+Fluent.Notify = Fluent.Notify
 Fluent.MakeNotify = Fluent.Notify
+Fluent.Notification = Fluent.Notify
+Fluent.CreateNotification = function(self)
+    return {
+        new = function(opt) return Fluent:Notify(opt) end,
+        New = function(opt) return Fluent:Notify(opt) end,
+        Notify = function(opt) return Fluent:Notify(opt) end
+    }
+end
+
 
 function Fluent:CreateNotification()
     return {
