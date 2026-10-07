@@ -425,6 +425,7 @@ local function addSection(tab, titleText, iconOptional)
     local holder = Instance.new("Frame")
     holder.BackgroundColor3 = Fluent.CurrentTheme.Surface
     holder.Size = UDim2.new(1, 0, 0, 45)
+    holder.AutomaticSize = Enum.AutomaticSize.Y
     holder.Parent = tab.Page
     corner(holder, 10)
     stroke(holder, Fluent.CurrentTheme.Border, 0.3)
@@ -500,6 +501,9 @@ local function addSection(tab, titleText, iconOptional)
         local mt = {
             __index = function(tbl, key)
                 if type(key) ~= "string" then return rawget(tbl, key) end
+                if string.sub(key, 1, 1) == "_" or key == "Frame" or key == "Instance" or key == "Value" or key == "State" then
+                    return rawget(tbl, key)
+                end
                 local lk = string.lower(key)
                 if lk == "settext" or lk == "settitle" or lk == "set" or lk == "text" then
                     return function(self, val)
@@ -538,7 +542,7 @@ local function addSection(tab, titleText, iconOptional)
                         return sec[key](sec, ...)
                     end
                 end
-                return function(self, ...) return self end
+                return rawget(tbl, key)
             end
         }
         setmetatable(e, mt)
@@ -853,7 +857,8 @@ local function addSection(tab, titleText, iconOptional)
         lay.Parent = sc
 
         local function updateScCanvas()
-            sc.CanvasSize = UDim2.new(0, 0, 0, lay.AbsoluteContentSize.Y + 12)
+            local layY = (lay.AbsoluteContentSize and lay.AbsoluteContentSize.Y) or 0
+            sc.CanvasSize = UDim2.new(0, 0, 0, layY + 12)
         end
         lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateScCanvas)
 
@@ -1568,6 +1573,7 @@ local function addSection(tab, titleText, iconOptional)
         local rowFrame = Instance.new("Frame")
         rowFrame.BackgroundTransparency = 1
         rowFrame.Size = UDim2.new(1, 0, 0, 44)
+        rowFrame.AutomaticSize = Enum.AutomaticSize.Y
         rowFrame.LayoutOrder = #holder:GetChildren() + 2
         rowFrame.Parent = holder
 
@@ -2439,14 +2445,19 @@ function Fluent:CreateWindow(o)
                 self.IconElement.ImageColor3 = Fluent.CurrentTheme.Accent
             end
             self.Window.ActiveTab = self
+            for _, el in ipairs(self.Elements or {}) do
+                if type(el) == "table" and type(el.Resize) == "function" then
+                    pcall(el.Resize)
+                end
+            end
             if (self.Title == "Settings" or self.Title == "settings") then
                 local activeProf = self.Window.ActiveConfigProfile or Fluent.ActiveConfigProfile
                 if activeProf and activeProf ~= "" then
-                    if self.Window._profileInput and self.Window._profileInput.SetValue then
-                        self.Window._profileInput:SetValue(activeProf, false)
+                    if type(self.Window._profileInput) == "table" and type(self.Window._profileInput.SetValue) == "function" then
+                        pcall(function() self.Window._profileInput:SetValue(activeProf, false) end)
                     end
-                    if self.Window._profileDropdown and self.Window._profileDropdown.SetValue then
-                        self.Window._profileDropdown:SetValue(activeProf, false)
+                    if type(self.Window._profileDropdown) == "table" and type(self.Window._profileDropdown.SetValue) == "function" then
+                        pcall(function() self.Window._profileDropdown:SetValue(activeProf, false) end)
                     end
                 end
             end
@@ -2518,15 +2529,18 @@ function Fluent:CreateWindow(o)
     local winMT = {
         __index = function(tbl, key)
             if type(key) ~= "string" then return rawget(tbl, key) end
+            if string.sub(key, 1, 1) == "_" or key == "ActiveTab" or key == "ActiveConfigProfile" or key == "CurrentProfile" or key == "Tabs" then
+                return rawget(tbl, key)
+            end
             local lk = string.lower(key)
-            if string.find(lk, "tab") then
+            if lk == "createtab" or lk == "tab" or lk == "newtab" or lk == "addtab" then
                 return function(self, ...) return self:AddTab(...) end
-            elseif string.find(lk, "section") or string.find(lk, "group") then
+            elseif lk == "createsection" or lk == "section" or lk == "addsection" or lk == "group" or lk == "addgroup" then
                 return function(self, ...) return self:AddTab(...) end
-            elseif string.find(lk, "notify") or string.find(lk, "notification") then
+            elseif lk == "notify" or lk == "createnotification" or lk == "makenotify" or lk == "notification" then
                 return function(self, ...) return Fluent:Notify(...) end
             end
-            return function(self, ...) return self end
+            return rawget(tbl, key)
         end
     }
     setmetatable(w, winMT)
@@ -2559,12 +2573,12 @@ function Fluent:CreateWindow(o)
 
     function w:BuildConfigSection(targetSecOrTab)
         local sec
-        if targetSecOrTab and targetSecOrTab.AddSection then
-            sec = targetSecOrTab:AddSection({ Name = "Config Profile Manager", Icon = "save" })
-        elseif targetSecOrTab and targetSecOrTab.AddToggle then
+        if targetSecOrTab and (targetSecOrTab.AddTextbox or targetSecOrTab.AddToggle or targetSecOrTab.AddButton) then
             sec = targetSecOrTab
+        elseif targetSecOrTab and targetSecOrTab.AddSection then
+            sec = targetSecOrTab:AddSection({ Name = "Config Profile Manager", Icon = "save" })
         else
-            local tab = self:AddTab("Settings", "settings")
+            local tab = self.Tabs["Settings"] or self.Tabs["settings"] or self:AddTab("Settings", "settings")
             sec = tab:AddSection({ Name = "Config Profile Manager", Icon = "save" })
         end
 
@@ -2586,6 +2600,9 @@ function Fluent:CreateWindow(o)
                 end
             end
         })
+
+        self._profileInput = profileInput
+        Fluent._profileInput = profileInput
 
         local profileDropdown = sec:AddDropdown({
             Name = "Select Saved Profile",
