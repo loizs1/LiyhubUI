@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const dir = __dirname;
+const dir = path.join(__dirname, '..');
 
 const server = http.createServer((req, res) => {
   const urlPath = req.url.replace(/^\//, '');

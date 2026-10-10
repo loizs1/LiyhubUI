@@ -180,7 +180,25 @@ local function drag(handle, target)
     UserInputService.InputChanged:Connect(function(i)
         if active and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
             local d = i.Position - start
-            target.Position = UDim2.new(pos.X.Scale, pos.X.Offset + d.X, pos.Y.Scale, pos.Y.Offset + d.Y)
+            local nx = pos.X.Offset + d.X
+            local ny = pos.Y.Offset + d.Y
+            pcall(function()
+                local cam = workspace.CurrentCamera
+                if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
+                    local vp = cam.ViewportSize
+                    local ax = target.AnchorPoint.X
+                    local ay = target.AnchorPoint.Y
+                    local sx = target.AbsoluteSize.X
+                    local sy = target.AbsoluteSize.Y
+                    local curScreenX = vp.X * pos.X.Scale + nx
+                    local curScreenY = vp.Y * pos.Y.Scale + ny
+                    curScreenX = math.clamp(curScreenX, ax * sx - sx + 40, vp.X - 40 + ax * sx)
+                    curScreenY = math.clamp(curScreenY, ay * sy, vp.Y - 40 + ay * sy)
+                    nx = curScreenX - vp.X * pos.X.Scale
+                    ny = curScreenY - vp.Y * pos.Y.Scale
+                end
+            end)
+            target.Position = UDim2.new(pos.X.Scale, nx, pos.Y.Scale, ny)
         end
     end)
 end
@@ -400,15 +418,18 @@ local function makeElement(parent, titleText, descText, h, iconOptional, orderOp
         xOffset = 36
     end
 
-    local title = text(f, titleText, 13, Fluent.CurrentTheme.Text)
-    title.Position = UDim2.fromOffset(xOffset, descText and 8 or 0)
-    title.Size = UDim2.new(1, -190 - (xOffset - 12), 0, descText and 18 or (h or 48))
+    local isMob = Fluent.IsMobile == true
+    local title = text(f, titleText, isMob and 12 or 13, Fluent.CurrentTheme.Text)
+    title.Position = UDim2.fromOffset(xOffset, descText and (isMob and 6 or 8) or 0)
+    title.Size = UDim2.new(1, -(isMob and 95 or 180) - (xOffset - 12), 0, descText and (isMob and 16 or 18) or (h or 48))
     title.Font = Enum.Font.GothamBold
+    title.TextTruncate = Enum.TextTruncate.AtEnd
 
     if descText then
-        local desc = text(f, descText, 11, Fluent.CurrentTheme.SubText)
-        desc.Position = UDim2.fromOffset(xOffset, 26)
-        desc.Size = UDim2.new(1, -190 - (xOffset - 12), 0, 16)
+        local desc = text(f, descText, isMob and 10 or 11, Fluent.CurrentTheme.SubText)
+        desc.Position = UDim2.fromOffset(xOffset, isMob and 23 or 26)
+        desc.Size = UDim2.new(1, -(isMob and 95 or 180) - (xOffset - 12), 0, isMob and 14 or 16)
+        desc.TextTruncate = Enum.TextTruncate.AtEnd
     end
     return f
 end
@@ -422,40 +443,42 @@ local function addSection(tab, titleText, iconOptional)
         secIcon = titleText.Icon or iconOptional
     end
 
+    local isMob = Fluent.IsMobile == true
     local holder = Instance.new("Frame")
     holder.BackgroundColor3 = Fluent.CurrentTheme.Surface
-    holder.Size = UDim2.new(1, 0, 0, 45)
+    holder.Size = UDim2.new(1, 0, 0, isMob and 38 or 45)
     holder.AutomaticSize = Enum.AutomaticSize.Y
     holder.Parent = tab.Page
     corner(holder, 10)
     stroke(holder, Fluent.CurrentTheme.Border, 0.3)
-    pad(holder, 8)
+    pad(holder, isMob and 6 or 8)
 
     local list = Instance.new("UIListLayout")
-    list.Padding = UDim.new(0, 7)
+    list.Padding = UDim.new(0, isMob and 5 or 7)
     list.SortOrder = Enum.SortOrder.LayoutOrder
     list.Parent = holder
 
     local headHolder = Instance.new("Frame")
     headHolder.Name = "SectionHeader"
     headHolder.BackgroundTransparency = 1
-    headHolder.Size = UDim2.new(1, 0, 0, 22)
+    headHolder.Size = UDim2.new(1, 0, 0, isMob and 18 or 22)
     headHolder.LayoutOrder = 1
     headHolder.Parent = holder
 
     local sIconType, sIconVal = resolveIcon(secIcon)
     local sHeadOffset = 0
+    local sIconDim = isMob and 12 or 14
     if sIconType == "image" then
         local sImg = Instance.new("ImageLabel")
         sImg.Name = "SectionIcon"
-        sImg.Size = UDim2.fromOffset(14, 14)
-        sImg.Position = UDim2.new(0, 2, 0.5, -7)
+        sImg.Size = UDim2.fromOffset(sIconDim, sIconDim)
+        sImg.Position = UDim2.new(0, 2, 0.5, -sIconDim / 2)
         sImg.BackgroundTransparency = 1
         sImg.Image = sIconVal
         sImg.ImageColor3 = Fluent.CurrentTheme.Accent
         sImg.ScaleType = Enum.ScaleType.Fit
         sImg.Parent = headHolder
-        sHeadOffset = 22
+        sHeadOffset = isMob and 18 or 22
     elseif sIconType == "text" then
         local sEm = Instance.new("TextLabel")
         sEm.Name = "SectionIcon"
@@ -463,14 +486,14 @@ local function addSection(tab, titleText, iconOptional)
         sEm.Position = UDim2.new(0, 2, 0.5, -8)
         sEm.BackgroundTransparency = 1
         sEm.Text = sIconVal
-        sEm.TextSize = 13
+        sEm.TextSize = isMob and 11 or 13
         sEm.TextColor3 = Fluent.CurrentTheme.Text
         sEm.Font = Enum.Font.GothamMedium
         sEm.Parent = headHolder
-        sHeadOffset = 22
+        sHeadOffset = isMob and 18 or 22
     end
 
-    local head = text(headHolder, secTitle, 12, Fluent.CurrentTheme.SubText)
+    local head = text(headHolder, secTitle, isMob and 11 or 12, Fluent.CurrentTheme.SubText)
     head.Position = UDim2.fromOffset(sHeadOffset, 0)
     head.Size = UDim2.new(1, -sHeadOffset, 1, 0)
     head.Font = Enum.Font.GothamBold
@@ -543,9 +566,9 @@ local function addSection(tab, titleText, iconOptional)
                     end
                 end
                 return rawget(tbl, key)
-        end
-    }
-    setmetatable(e, mt)
+            end
+        }
+        setmetatable(e, mt)
         return e
     end
 
@@ -557,11 +580,15 @@ local function addSection(tab, titleText, iconOptional)
 
     function sec:AddButton(o)
         o = o or {}
-        local f = makeElement(holder, o.Title or o.Name or "Button", o.Description or o.Desc, 48, o.Icon)
-        local b = button(f, "Run", 30)
+        local isMob = Fluent.IsMobile == true
+        local f = makeElement(holder, o.Title or o.Name or "Button", o.Description or o.Desc, isMob and (o.Desc and 44 or 40) or 48, o.Icon)
+        local btnW = isMob and 70 or 85
+        local btnH = isMob and 26 or 30
+        local b = button(f, o.ButtonText or "Run", btnH)
         b.AnchorPoint = Vector2.new(1, 0.5)
         b.Position = UDim2.new(1, -10, 0.5, 0)
-        b.Size = UDim2.fromOffset(85, 30)
+        b.Size = UDim2.fromOffset(btnW, btnH)
+        b.TextSize = isMob and 11 or 12
         b.MouseButton1Click:Connect(function() safe(o.Callback) end)
         local e = {
             Frame = f,
@@ -584,12 +611,16 @@ local function addSection(tab, titleText, iconOptional)
             flag = o.Flag
         end
 
-        local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, 48, cfg.Icon)
+        local isMob = Fluent.IsMobile == true
+        local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, isMob and (cfg.Desc and 44 or 40) or 48, cfg.Icon)
         local state = cfg.Default == true
-        local b = button(f, state and "ON" or "OFF", 30)
+        local btnW = isMob and 54 or 62
+        local btnH = isMob and 26 or 30
+        local b = button(f, state and "ON" or "OFF", btnH)
         b.AnchorPoint = Vector2.new(1, 0.5)
         b.Position = UDim2.new(1, -10, 0.5, 0)
-        b.Size = UDim2.fromOffset(62, 30)
+        b.Size = UDim2.fromOffset(btnW, btnH)
+        b.TextSize = isMob and 11 or 12
         b.BackgroundColor3 = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface2
         Fluent.Flags[flag] = state
 
@@ -627,8 +658,9 @@ local function addSection(tab, titleText, iconOptional)
             flag = o.Flag
         end
 
+        local isMob = Fluent.IsMobile == true
         local hasDesc = (cfg.Description or cfg.Desc) ~= nil
-        local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, hasDesc and 66 or 54, cfg.Icon)
+        local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, hasDesc and (isMob and 60 or 66) or (isMob and 48 or 54), cfg.Icon)
 
         local min, max = cfg.Min or 0, cfg.Max or 100
         local step = cfg.Step or 1
@@ -641,13 +673,13 @@ local function addSection(tab, titleText, iconOptional)
         valBadge.BackgroundColor3 = Fluent.CurrentTheme.Surface
         valBadge.BackgroundTransparency = 0.25
         valBadge.AnchorPoint = Vector2.new(1, 0)
-        valBadge.Position = UDim2.new(1, -12, 0, hasDesc and 8 or 9)
-        valBadge.Size = UDim2.fromOffset(54, 20)
+        valBadge.Position = UDim2.new(1, -12, 0, hasDesc and (isMob and 7 or 8) or (isMob and 8 or 9))
+        valBadge.Size = UDim2.fromOffset(isMob and 46 or 54, isMob and 18 or 20)
         valBadge.Parent = f
         corner(valBadge, 6)
         stroke(valBadge, Fluent.CurrentTheme.Border, 0.35)
 
-        local valLabel = text(valBadge, tostring(current) .. (cfg.Suffix or ""), 11, Fluent.CurrentTheme.Accent)
+        local valLabel = text(valBadge, tostring(current) .. (cfg.Suffix or ""), isMob and 10 or 11, Fluent.CurrentTheme.Accent)
         valLabel.Size = UDim2.fromScale(1, 1)
         valLabel.TextXAlignment = Enum.TextXAlignment.Center
         valLabel.Font = Enum.Font.GothamBold
@@ -656,7 +688,7 @@ local function addSection(tab, titleText, iconOptional)
         local rail = Instance.new("Frame")
         rail.Name = "SliderTrack"
         rail.BackgroundColor3 = Color3.fromRGB(24, 30, 42)
-        rail.Position = UDim2.new(0, 14, 0, hasDesc and 48 or 36)
+        rail.Position = UDim2.new(0, 14, 0, hasDesc and (isMob and 42 or 48) or (isMob and 32 or 36))
         rail.Size = UDim2.new(1, -28, 0, 5)
         rail.Parent = f
         corner(rail, 3)
@@ -784,7 +816,7 @@ local function addSection(tab, titleText, iconOptional)
         pill.BackgroundColor3 = Fluent.CurrentTheme.Surface
         pill.AnchorPoint = Vector2.new(1, 0.5)
         pill.Position = UDim2.new(1, -10, 0, headerH / 2)
-        pill.Size = UDim2.fromOffset(165, 28)
+        pill.Size = UDim2.fromOffset(Fluent.IsMobile and 125 or 165, Fluent.IsMobile and 26 or 28)
         pill.Parent = f
         corner(pill, 7)
         stroke(pill, Fluent.CurrentTheme.Border, 0.35)
@@ -1115,7 +1147,7 @@ local function addSection(tab, titleText, iconOptional)
         box.BackgroundColor3 = Fluent.CurrentTheme.Surface2
         box.Position = UDim2.new(1, -10, 0.5, 0)
         box.AnchorPoint = Vector2.new(1, 0.5)
-        box.Size = UDim2.fromOffset(180, 30)
+        box.Size = UDim2.fromOffset(Fluent.IsMobile and 125 or 180, Fluent.IsMobile and 26 or 30)
         box.Parent = f
         corner(box, 7)
         stroke(box, Fluent.CurrentTheme.Border, 0.25)
@@ -1721,32 +1753,75 @@ function Fluent:CreateWindow(o)
         pcall(function() g._LiyhubCurrentWindow:Destroy() end)
     end
 
+    local isAndroid = false
+    local isIOS = false
+    pcall(function()
+        local platform = UserInputService:GetPlatform()
+        if platform == Enum.Platform.Android then
+            isAndroid = true
+        elseif platform == Enum.Platform.IOS then
+            isIOS = true
+        end
+    end)
+
+    if o.Device or o.Platform then
+        local devLower = string.lower(tostring(o.Device or o.Platform))
+        if devLower == "android" then
+            isAndroid = true
+        elseif devLower == "ios" or devLower == "iphone" or devLower == "ipad" then
+            isIOS = true
+        end
+    end
+
     local isTouch = UserInputService.TouchEnabled
     local isKeyboard = UserInputService.KeyboardEnabled
     local isMouse = UserInputService.MouseEnabled
-    local isMobile = isTouch and (not isKeyboard or not isMouse)
+    local isMobile = isAndroid or isIOS or (isTouch and (not isKeyboard or not isMouse))
+    if o.Device or o.Platform then
+        local devLower = string.lower(tostring(o.Device or o.Platform))
+        if devLower == "mobile" or devLower == "phone" then
+            isMobile = true
+        elseif devLower == "pc" or devLower == "windows" then
+            isMobile = false
+            isAndroid = false
+            isIOS = false
+        end
+    end
 
     local cam = workspace.CurrentCamera
     local vp = (cam and cam.ViewportSize) or Vector2.new(1280, 720)
 
-    -- Auto Size Standard from Old UI (PC: 680x490 / 720x500; Mobile: 580x430 clamped to viewport)
+    if vp.X < 850 and isTouch then
+        isMobile = true
+    end
+
+    Fluent.IsMobile = isMobile
+    Fluent.IsAndroid = isAndroid
+    Fluent.IsIOS = isIOS
+
+    local deviceName = (isAndroid and "Android") or (isIOS and "iOS") or (isMobile and "Mobile") or "PC"
+    if o.Device then
+        deviceName = tostring(o.Device)
+    end
+
+    -- Auto Size Standard (PC: 680x480, TabWidth: 165; Mobile/Android/iOS: 480x310, TabWidth: 125)
     local defaultSize
     local defaultTabWidth
-    if isMobile or vp.X < 850 then
-        local targetW = math.clamp(math.floor(vp.X * 0.88), 460, 580)
-        local targetH = math.clamp(math.floor(vp.Y * 0.85), 330, 430)
+    if isMobile then
+        local targetW = math.clamp(math.floor(vp.X * 0.72), 440, 510)
+        local targetH = math.clamp(math.floor(vp.Y * 0.78), 280, 325)
         defaultSize = UDim2.fromOffset(targetW, targetH)
-        defaultTabWidth = 145
+        defaultTabWidth = 125
     else
-        defaultSize = UDim2.fromOffset(680, 490)
-        defaultTabWidth = 180
+        defaultSize = UDim2.fromOffset(680, 480)
+        defaultTabWidth = 165
     end
 
     local size = o.Size or defaultSize
     if isMobile and cam then
-        local maxW = math.max(vp.X - 24, 400)
-        local maxH = math.max(vp.Y - 24, 300)
-        if size.X.Offset > maxW or size.Y.Offset > maxH then
+        local maxW = math.clamp(math.floor(vp.X * 0.78), 440, 520)
+        local maxH = math.clamp(math.floor(vp.Y * 0.82), 280, 335)
+        if not o.Size or size.X.Offset > maxW or size.Y.Offset > maxH then
             size = UDim2.fromOffset(math.min(size.X.Offset, maxW), math.min(size.Y.Offset, maxH))
         end
     end
@@ -1762,7 +1837,11 @@ function Fluent:CreateWindow(o)
         Tabs = {},
         _tabs = {},
         _visible = true,
-        TabWidth = o.TabWidth or defaultTabWidth,
+        TabWidth = (isMobile and (o.TabWidth and math.min(o.TabWidth, 135) or defaultTabWidth)) or (o.TabWidth or defaultTabWidth),
+        Device = deviceName,
+        IsMobile = isMobile,
+        IsAndroid = isAndroid,
+        IsIOS = isIOS,
     }
     table.insert(self._windows, w)
     g._LiyhubCurrentWindow = w
@@ -1802,8 +1881,8 @@ function Fluent:CreateWindow(o)
     topLine.Name = "TopLine"
     topLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     topLine.BorderSizePixel = 0
-    topLine.Position = UDim2.fromOffset(18, 58)
-    topLine.Size = UDim2.new(1, -36, 0, 1)
+    topLine.Position = UDim2.fromOffset(isMobile and 12 or 18, isMobile and 50 or 58)
+    topLine.Size = UDim2.new(1, isMobile and -24 or -36, 0, 1)
     topLine.ZIndex = 4
     topLine.Parent = main
 
@@ -1913,7 +1992,7 @@ function Fluent:CreateWindow(o)
     local bar = Instance.new("Frame")
     bar.Name = "Topbar"
     bar.BackgroundTransparency = 1
-    bar.Size = UDim2.new(1, 0, 0, 58)
+    bar.Size = UDim2.new(1, 0, 0, isMobile and 50 or 58)
     bar.ZIndex = 3
     bar.Parent = main
     drag(bar, main)
@@ -1921,8 +2000,9 @@ function Fluent:CreateWindow(o)
     -- Topbar Logo Image (dj's exact logo image)
     local logoImg = Instance.new("ImageLabel")
     logoImg.Name = "TopbarLogo"
-    logoImg.Size = UDim2.fromOffset(36, 36)
-    logoImg.Position = UDim2.fromOffset(18, 11)
+    local logoDim = isMobile and 30 or 36
+    logoImg.Size = UDim2.fromOffset(logoDim, logoDim)
+    logoImg.Position = UDim2.fromOffset(isMobile and 12 or 18, isMobile and 10 or 11)
     logoImg.BackgroundTransparency = 1
     logoImg.Image = resolveLogoAsset()
     logoImg.ScaleType = Enum.ScaleType.Fit
@@ -1936,28 +2016,37 @@ function Fluent:CreateWindow(o)
     logoStroke.Thickness = 1
     logoStroke.Parent = logoImg
 
-    local title = text(bar, w.Title, 16)
-    title.Font = Enum.Font.GothamBold
+    local titleX = isMobile and 48 or 62
+    local rightReserved = isMobile and -205 or -340
 
-    local sub = text(bar, w.SubTitle or "", 11, self.CurrentTheme.SubText)
+    local title = text(bar, w.Title, isMobile and 14 or 16)
+    title.Font = Enum.Font.GothamBold
+    title.TextTruncate = Enum.TextTruncate.AtEnd
+
+    local sub = text(bar, w.SubTitle or "", isMobile and 10 or 11, self.CurrentTheme.SubText)
+    sub.TextTruncate = Enum.TextTruncate.AtEnd
     if w.SubTitle and w.SubTitle ~= "" then
-        title.Position = UDim2.fromOffset(62, 10)
-        title.Size = UDim2.new(1, -340, 0, 20)
-        sub.Position = UDim2.fromOffset(63, 30)
-        sub.Size = UDim2.new(1, -340, 0, 16)
+        title.Position = UDim2.fromOffset(titleX, isMobile and 8 or 10)
+        title.Size = UDim2.new(1, rightReserved, 0, isMobile and 18 or 20)
+        sub.Position = UDim2.fromOffset(titleX + 1, isMobile and 26 or 30)
+        sub.Size = UDim2.new(1, rightReserved, 0, isMobile and 14 or 16)
         sub.Visible = true
     else
-        title.Position = UDim2.fromOffset(62, 19)
-        title.Size = UDim2.new(1, -340, 0, 22)
+        title.Position = UDim2.fromOffset(titleX, isMobile and 15 or 19)
+        title.Size = UDim2.new(1, rightReserved, 0, isMobile and 20 or 22)
         sub.Visible = false
     end
 
     -- Top-Right Controls: Search Box, Minimize [-], Close [X]
+    local sfWidth = isMobile and 110 or 150
+    local sfHeight = isMobile and 26 or 30
+    local sfY = isMobile and 12 or 14
+
     local searchFrame = Instance.new("Frame")
     searchFrame.Name = "SearchFrame"
     searchFrame.BackgroundColor3 = self.CurrentTheme.Surface
-    searchFrame.Size = UDim2.fromOffset(150, 30)
-    searchFrame.Position = UDim2.new(1, -240, 0, 14)
+    searchFrame.Size = UDim2.fromOffset(sfWidth, sfHeight)
+    searchFrame.Position = UDim2.new(1, isMobile and -175 or -240, 0, sfY)
     searchFrame.ZIndex = 5
     searchFrame.Parent = bar
     corner(searchFrame, 8)
@@ -1965,8 +2054,8 @@ function Fluent:CreateWindow(o)
 
     local searchIcon = Instance.new("ImageLabel")
     searchIcon.Name = "SearchIcon"
-    searchIcon.Size = UDim2.fromOffset(14, 14)
-    searchIcon.Position = UDim2.new(0, 9, 0.5, -7)
+    searchIcon.Size = UDim2.fromOffset(isMobile and 12 or 14, isMobile and 12 or 14)
+    searchIcon.Position = UDim2.new(0, isMobile and 7 or 9, 0.5, isMobile and -6 or -7)
     searchIcon.BackgroundTransparency = 1
     searchIcon.Image = "rbxassetid://121018724060431"
     searchIcon.ImageColor3 = Color3.fromRGB(245, 248, 255)
@@ -1979,29 +2068,30 @@ function Fluent:CreateWindow(o)
     search.ClearTextOnFocus = false
     search.TextColor3 = self.CurrentTheme.Text
     search.PlaceholderColor3 = self.CurrentTheme.SubText
-    search.TextSize = 11
+    search.TextSize = isMobile and 10 or 11
     search.Font = Enum.Font.GothamBold
     search.BackgroundTransparency = 1
-    search.Size = UDim2.new(1, -30, 1, 0)
-    search.Position = UDim2.fromOffset(28, 0)
+    search.Size = UDim2.new(1, isMobile and -24 or -30, 1, 0)
+    search.Position = UDim2.fromOffset(isMobile and 23 or 28, 0)
     search.ZIndex = 6
     search.Parent = searchFrame
     w.SearchBox = search
 
     local function createIconButton(iconAsset, xOffset, callback)
+        local btnDim = isMobile and 26 or 30
         local b = Instance.new("TextButton")
         b.Text = ""
         b.AutoButtonColor = false
         b.BackgroundColor3 = self.CurrentTheme.Surface
-        b.Size = UDim2.fromOffset(30, 30)
-        b.Position = UDim2.new(1, xOffset, 0, 14)
+        b.Size = UDim2.fromOffset(btnDim, btnDim)
+        b.Position = UDim2.new(1, xOffset, 0, sfY)
         b.ZIndex = 5
         b.Parent = bar
-        corner(b, 8)
+        corner(b, 7)
         stroke(b, self.CurrentTheme.Border, 0.3)
 
         local icon = Instance.new("ImageLabel")
-        icon.Size = UDim2.fromOffset(15, 15)
+        icon.Size = UDim2.fromOffset(isMobile and 13 or 15, isMobile and 13 or 15)
         icon.AnchorPoint = Vector2.new(0.5, 0.5)
         icon.Position = UDim2.fromScale(0.5, 0.5)
         icon.BackgroundTransparency = 1
@@ -2029,17 +2119,17 @@ function Fluent:CreateWindow(o)
     local body = Instance.new("Frame")
     body.Name = "Body"
     body.BackgroundTransparency = 1
-    body.Position = UDim2.fromOffset(14, 66)
-    body.Size = UDim2.new(1, -28, 1, -78)
+    body.Position = UDim2.fromOffset(isMobile and 10 or 14, isMobile and 56 or 66)
+    body.Size = UDim2.new(1, isMobile and -20 or -28, 1, isMobile and -66 or -78)
     body.ZIndex = 2
     body.Parent = main
 
     local minimized = false
     local minBtn, minIcon
-    minBtn, minIcon = createIconButton("rbxassetid://10734896206", -82, function()
+    minBtn, minIcon = createIconButton("rbxassetid://10734896206", isMobile and -60 or -82, function()
         w:Minimize()
     end)
-    local closeBtn = createIconButton("rbxassetid://10747384394", -44, function() w:Destroy() end)
+    local closeBtn = createIconButton("rbxassetid://10747384394", isMobile and -30 or -44, function() w:Destroy() end)
 
     -- Left Sidebar Container
     local sidebarContainer = Instance.new("Frame")
@@ -2055,7 +2145,7 @@ function Fluent:CreateWindow(o)
     sidebar.BackgroundColor3 = self.CurrentTheme.Surface
     sidebar.BackgroundTransparency = 0.2
     sidebar.BorderSizePixel = 0
-    sidebar.Size = UDim2.new(1, 0, 1, -56)
+    sidebar.Size = UDim2.new(1, 0, 1, isMobile and -50 or -56)
     sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
     sidebar.AutomaticCanvasSize = Enum.AutomaticSize.None
     sidebar.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -2066,7 +2156,7 @@ function Fluent:CreateWindow(o)
     sidebar.Parent = sidebarContainer
     corner(sidebar, 11)
     stroke(sidebar, self.CurrentTheme.Border, 0.35)
-    pad(sidebar, 7, 7, 12, 7)
+    pad(sidebar, isMobile and 5 or 7, isMobile and 5 or 7, isMobile and 8 or 12, isMobile and 5 or 7)
 
     local sl = Instance.new("UIListLayout")
     sl.Padding = UDim.new(0, 5)
@@ -2085,8 +2175,8 @@ function Fluent:CreateWindow(o)
     -- Bottom-Left Neverlose User Profile Card
     local profileCard = Instance.new("Frame")
     profileCard.Name = "NeverloseProfile"
-    profileCard.Size = UDim2.new(1, 0, 0, 50)
-    profileCard.Position = UDim2.new(0, 0, 1, -50)
+    profileCard.Size = UDim2.new(1, 0, 0, isMobile and 44 or 50)
+    profileCard.Position = UDim2.new(0, 0, 1, isMobile and -44 or -50)
     profileCard.BackgroundColor3 = self.CurrentTheme.Surface
     profileCard.BackgroundTransparency = 0.2
     profileCard.ZIndex = 4
@@ -2095,21 +2185,23 @@ function Fluent:CreateWindow(o)
     stroke(profileCard, self.CurrentTheme.Border, 0.35)
 
     -- Avatar Headshot
+    -- Avatar Headshot
+    local avDim = isMobile and 28 or 36
     local avatarImg = Instance.new("ImageLabel")
     avatarImg.Name = "Avatar"
-    avatarImg.Size = UDim2.fromOffset(36, 36)
-    avatarImg.Position = UDim2.new(0, 7, 0.5, -18)
+    avatarImg.Size = UDim2.fromOffset(avDim, avDim)
+    avatarImg.Position = UDim2.new(0, isMobile and 6 or 7, 0.5, -avDim / 2)
     avatarImg.BackgroundColor3 = self.CurrentTheme.Surface2
     avatarImg.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
     avatarImg.ZIndex = 5
     avatarImg.Parent = profileCard
-    corner(avatarImg, 18)
+    corner(avatarImg, avDim / 2)
 
     -- Green Online / Active Status Dot
     local statusDot = Instance.new("Frame")
     statusDot.Name = "StatusDot"
-    statusDot.Size = UDim2.fromOffset(8, 8)
-    statusDot.Position = UDim2.new(1, -7, 1, -7)
+    statusDot.Size = UDim2.fromOffset(isMobile and 6 or 7, isMobile and 6 or 7)
+    statusDot.Position = UDim2.new(1, -5, 1, -5)
     statusDot.BackgroundColor3 = Color3.fromRGB(0, 230, 118)
     statusDot.BorderSizePixel = 0
     statusDot.ZIndex = 6
@@ -2117,7 +2209,7 @@ function Fluent:CreateWindow(o)
     corner(statusDot, 4)
 
     local dotStroke = Instance.new("UIStroke")
-    dotStroke.Thickness = 1.5
+    dotStroke.Thickness = 1.2
     dotStroke.Color = Color3.fromRGB(15, 16, 20)
     dotStroke.Parent = statusDot
 
@@ -2135,44 +2227,76 @@ function Fluent:CreateWindow(o)
         end)
     end
 
+    local textLeft = isMobile and 38 or 48
+
     -- DisplayName & @Username
-    local dispName = text(profileCard, LocalPlayer and LocalPlayer.DisplayName or "User", 12, self.CurrentTheme.Text)
-    dispName.Position = UDim2.new(0, 48, 0, 8)
-    dispName.Size = UDim2.new(1, -95, 0, 16)
+    local dispName = text(profileCard, LocalPlayer and LocalPlayer.DisplayName or "User", isMobile and 11 or 12, self.CurrentTheme.Text)
     dispName.Font = Enum.Font.GothamBold
     dispName.TextTruncate = Enum.TextTruncate.AtEnd
     dispName.ZIndex = 5
 
-    local userName = text(profileCard, LocalPlayer and ("@" .. LocalPlayer.Name) or "@user", 10, self.CurrentTheme.SubText)
-    userName.Position = UDim2.new(0, 48, 0, 24)
-    userName.Size = UDim2.new(1, -95, 0, 14)
+    local userName = text(profileCard, LocalPlayer and ("@" .. LocalPlayer.Name) or "@user", isMobile and 9 or 10, self.CurrentTheme.SubText)
     userName.Font = Enum.Font.GothamBold
     userName.TextTruncate = Enum.TextTruncate.AtEnd
     userName.ZIndex = 5
 
-    -- Neverlose Role Tag ("USER")
+    -- Neverlose Role Tag / Device Tag (e.g. "ANDROID", "IOS", "PC")
     local rolePill = Instance.new("Frame")
     rolePill.Name = "RolePill"
-    rolePill.Size = UDim2.fromOffset(42, 17)
-    rolePill.Position = UDim2.new(1, -48, 0.5, -8)
-    rolePill.BackgroundColor3 = self.CurrentTheme.Accent
+    rolePill.AutomaticSize = Enum.AutomaticSize.X
+    rolePill.Size = UDim2.new(0, 0, 0, isMobile and 15 or 17)
+    rolePill.AnchorPoint = Vector2.new(1, 0.5)
+    rolePill.Position = UDim2.new(1, isMobile and -6 or -8, 0.5, 0)
+    rolePill.BackgroundColor3 = isAndroid and Color3.fromRGB(0, 200, 115) or (isIOS and Color3.fromRGB(0, 160, 255) or self.CurrentTheme.Accent)
     rolePill.BackgroundTransparency = 0.82
     rolePill.BorderSizePixel = 0
     rolePill.ZIndex = 5
     rolePill.Parent = profileCard
     corner(rolePill, 4)
+    pad(rolePill, 1, isMobile and 4 or 5, 1, isMobile and 4 or 5)
 
     local roleStroke = Instance.new("UIStroke")
     roleStroke.Thickness = 1
-    roleStroke.Color = self.CurrentTheme.Accent
+    roleStroke.Color = isAndroid and Color3.fromRGB(0, 200, 115) or (isIOS and Color3.fromRGB(0, 160, 255) or self.CurrentTheme.Accent)
     roleStroke.Transparency = 0.5
     roleStroke.Parent = rolePill
 
-    local roleText = text(rolePill, "USER", 9, self.CurrentTheme.Accent)
-    roleText.Size = UDim2.fromScale(1, 1)
+    local badgeTag = string.upper(tostring(o.Device or o.Role or o.Tier or deviceName))
+    local roleText = text(rolePill, badgeTag, isMobile and 8 or 9, isAndroid and Color3.fromRGB(0, 230, 120) or (isIOS and Color3.fromRGB(60, 180, 255) or self.CurrentTheme.Accent))
+    roleText.AutomaticSize = Enum.AutomaticSize.X
+    roleText.Size = UDim2.new(0, 0, 1, 0)
     roleText.Font = Enum.Font.GothamBold
     roleText.TextXAlignment = Enum.TextXAlignment.Center
     roleText.ZIndex = 6
+    w.RolePill = rolePill
+    w.RoleText = roleText
+
+    local function updateProfileLayout()
+        local isMob = Fluent.IsMobile or (w.TabWidth and w.TabWidth < 140)
+        local upper = string.upper(tostring(w.Device or o.Device or o.Role or o.Tier or deviceName))
+
+        rolePill.AnchorPoint = Vector2.new(1, 0.5)
+        rolePill.Position = UDim2.new(1, isMob and -5 or -8, 0.5, 0)
+        rolePill.Size = UDim2.new(0, 0, 0, isMob and 14 or 17)
+        roleText.TextSize = isMob and 7.5 or 9
+        rolePill.Visible = true
+
+        local badgeW = (upper == "ANDROID" and (isMob and 40 or 52))
+            or (upper == "TABLET" and (isMob and 38 or 46))
+            or (upper == "IOS" and (isMob and 22 or 30))
+            or (isMob and 20 or 28)
+        local rightMargin = badgeW + (isMob and 7 or 10)
+
+        dispName.Position = UDim2.new(0, textLeft, 0, isMob and 6 or 8)
+        dispName.Size = UDim2.new(1, -(textLeft + rightMargin), 0, isMob and 14 or 16)
+        dispName.TextSize = isMob and 11 or 12
+
+        userName.Position = UDim2.new(0, textLeft, 0, isMob and 20 or 24)
+        userName.Size = UDim2.new(1, -(textLeft + rightMargin), 0, isMob and 12 or 14)
+        userName.TextSize = isMob and 9 or 10
+        userName.Visible = true
+    end
+    updateProfileLayout()
 
     -- Pages Area
     local pages = Instance.new("Frame")
@@ -2196,13 +2320,28 @@ function Fluent:CreateWindow(o)
         return t
     end
 
+    function w:SetDevice(dev)
+        if not dev then return end
+        self.Device = tostring(dev)
+        local upper = string.upper(tostring(dev))
+        if roleText then
+            roleText.Text = upper
+            local c = (upper == "ANDROID" and Color3.fromRGB(0, 230, 120)) or (upper == "IOS" and Color3.fromRGB(60, 180, 255)) or Fluent.CurrentTheme.Accent
+            roleText.TextColor3 = c
+            if roleStroke then roleStroke.Color = c end
+            if rolePill then rolePill.BackgroundColor3 = c end
+        end
+        pcall(updateProfileLayout)
+    end
+
     -- Android Floating Pin Tab Widget (Square rounded like UI cards, logo fully fills size)
+    local pillDim = isMobile and 38 or 42
     local floatingPill = Instance.new("TextButton")
     floatingPill.Name = "LiyhubAndroidPinTab"
     floatingPill.Text = ""
     floatingPill.AutoButtonColor = false
-    floatingPill.Size = UDim2.fromOffset(42, 42)
-    floatingPill.Position = UDim2.new(0, 20, 0.5, -21)
+    floatingPill.Size = UDim2.fromOffset(pillDim, pillDim)
+    floatingPill.Position = UDim2.new(0, 16, 0.5, -pillDim / 2)
     floatingPill.BackgroundColor3 = self.CurrentTheme.Surface
     floatingPill.BackgroundTransparency = 0.05
     floatingPill.ClipsDescendants = true
@@ -2270,19 +2409,30 @@ function Fluent:CreateWindow(o)
     function w:SetDevicePreset(preset)
         local vp = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize) or Vector2.new(1280, 720)
         local targetSize, targetTabW
-        if preset == "Android" or preset == "Mobile" then
-            targetSize = UDim2.fromOffset(math.clamp(math.floor(vp.X * 0.88), 460, 580), math.clamp(math.floor(vp.Y * 0.85), 330, 430))
+        local pLower = string.lower(tostring(preset or ""))
+        if pLower == "android" or pLower == "ios" or pLower == "mobile" or pLower == "phone" then
+            targetSize = UDim2.fromOffset(math.clamp(math.floor(vp.X * 0.72), 440, 510), math.clamp(math.floor(vp.Y * 0.78), 280, 325))
+            targetTabW = 125
+            if pLower == "android" then
+                w:SetDevice("Android")
+            elseif pLower == "ios" then
+                w:SetDevice("iOS")
+            else
+                w:SetDevice("Mobile")
+            end
+        elseif pLower == "tablet" or pLower == "ipad" then
+            targetSize = UDim2.fromOffset(math.clamp(math.floor(vp.X * 0.80), 540, 640), math.clamp(math.floor(vp.Y * 0.80), 360, 440))
             targetTabW = 145
-        elseif preset == "Tablet" then
-            targetSize = UDim2.fromOffset(math.clamp(math.floor(vp.X * 0.85), 580, 680), math.clamp(math.floor(vp.Y * 0.82), 400, 490))
-            targetTabW = 160
-        elseif preset == "Compact" or preset == "Mini" then
-            targetSize = UDim2.fromOffset(480, 360)
-            targetTabW = 135
+            w:SetDevice("Tablet")
+        elseif pLower == "compact" or pLower == "mini" then
+            targetSize = UDim2.fromOffset(450, 280)
+            targetTabW = 120
+            w:SetDevice("Compact")
         else
             -- PC / Standard
-            targetSize = UDim2.fromOffset(680, 490)
-            targetTabW = 180
+            targetSize = UDim2.fromOffset(680, 480)
+            targetTabW = 165
+            w:SetDevice("PC")
         end
 
         w.Size = targetSize
@@ -2294,6 +2444,7 @@ function Fluent:CreateWindow(o)
         if pages then
             tween(pages, 0.2, { Position = UDim2.fromOffset(targetTabW + 10, 0), Size = UDim2.new(1, -targetTabW - 10, 1, 0) })
         end
+        pcall(updateProfileLayout)
     end
 
     -- Tab Instantiation
@@ -2317,7 +2468,7 @@ function Fluent:CreateWindow(o)
         tb.Text = ""
         tb.BackgroundColor3 = Fluent.CurrentTheme.Surface2
         tb.BackgroundTransparency = 0.45
-        tb.Size = UDim2.new(1, 0, 0, 38)
+        tb.Size = UDim2.new(1, 0, 0, isMobile and 32 or 38)
         tb.ZIndex = 4
         tb.LayoutOrder = #self._tabs
         tb.Parent = sidebar
@@ -2326,7 +2477,7 @@ function Fluent:CreateWindow(o)
         local accent = Instance.new("Frame")
         accent.BackgroundColor3 = Fluent.CurrentTheme.Accent
         accent.BackgroundTransparency = 1
-        accent.Size = UDim2.fromOffset(3, 20)
+        accent.Size = UDim2.fromOffset(3, isMobile and 16 or 20)
         accent.AnchorPoint = Vector2.new(0, 0.5)
         accent.Position = UDim2.new(0, 2, 0.5, 0)
         accent.ZIndex = 5
@@ -2335,12 +2486,13 @@ function Fluent:CreateWindow(o)
 
         local iconType, iconVal = resolveIcon(t.Icon)
         local iconElement = nil
+        local iconDim = isMobile and 14 or 16
 
         if iconType == "image" then
             local img = Instance.new("ImageLabel")
             img.Name = "TabIcon"
-            img.Size = UDim2.fromOffset(16, 16)
-            img.Position = UDim2.new(0, 14, 0.5, -8)
+            img.Size = UDim2.fromOffset(iconDim, iconDim)
+            img.Position = UDim2.new(0, isMobile and 10 or 14, 0.5, -iconDim / 2)
             img.BackgroundTransparency = 1
             img.Image = iconVal
             img.ImageColor3 = Fluent.CurrentTheme.SubText
@@ -2351,11 +2503,11 @@ function Fluent:CreateWindow(o)
         elseif iconType == "text" then
             local em = Instance.new("TextLabel")
             em.Name = "TabIcon"
-            em.Size = UDim2.fromOffset(18, 18)
-            em.Position = UDim2.new(0, 13, 0.5, -9)
+            em.Size = UDim2.fromOffset(isMobile and 16 or 18, isMobile and 16 or 18)
+            em.Position = UDim2.new(0, isMobile and 10 or 13, 0.5, isMobile and -8 or -9)
             em.BackgroundTransparency = 1
             em.Text = iconVal
-            em.TextSize = 14
+            em.TextSize = isMobile and 12 or 14
             em.TextColor3 = Fluent.CurrentTheme.Text
             em.Font = Enum.Font.GothamMedium
             em.ZIndex = 5
@@ -2363,12 +2515,13 @@ function Fluent:CreateWindow(o)
             iconElement = em
         end
 
-        local textOffset = (iconType ~= nil) and 36 or 14
-        local label = text(tb, t.Title, 12, Fluent.CurrentTheme.SubText)
+        local textOffset = (iconType ~= nil) and (isMobile and 30 or 36) or 12
+        local label = text(tb, t.Title, isMobile and 11 or 12, Fluent.CurrentTheme.SubText)
         label.Position = UDim2.fromOffset(textOffset, 0)
-        label.Size = UDim2.new(1, -textOffset - 10, 1, 0)
+        label.Size = UDim2.new(1, -textOffset - 8, 1, 0)
         label.ZIndex = 5
         label.Font = Enum.Font.GothamBold
+        label.TextTruncate = Enum.TextTruncate.AtEnd
 
         local page = Instance.new("ScrollingFrame")
         page.Name = "Tab_" .. t.Title
@@ -2427,6 +2580,11 @@ function Fluent:CreateWindow(o)
 
         function t:Select()
             for _, x in ipairs(self.Window._tabs) do
+                for _, el in ipairs(x.Elements or {}) do
+                    if type(el) == "table" and type(el.Close) == "function" then
+                        pcall(el.Close)
+                    end
+                end
                 x.Page.Visible = false
                 x.Button.BackgroundColor3 = Fluent.CurrentTheme.Surface2
                 x.Button.BackgroundTransparency = 0.45
@@ -3028,14 +3186,14 @@ function Fluent:Notify(o)
         holder = Instance.new("Frame")
         holder.Name = "LiyhubNotifyHolder"
         holder.BackgroundTransparency = 1
-        holder.AnchorPoint = Vector2.new(1, 1)
-        holder.Position = UDim2.new(1, -20, 1, -20)
-        holder.Size = UDim2.fromOffset(320, 480)
+        holder.AnchorPoint = Fluent.IsMobile and Vector2.new(1, 0) or Vector2.new(1, 1)
+        holder.Position = Fluent.IsMobile and UDim2.new(1, -16, 0, 50) or UDim2.new(1, -20, 1, -20)
+        holder.Size = Fluent.IsMobile and UDim2.fromOffset(280, 400) or UDim2.fromOffset(320, 480)
         holder.ZIndex = 1000
         holder.Parent = notifyGui
 
         local l = Instance.new("UIListLayout")
-        l.VerticalAlignment = Enum.VerticalAlignment.Bottom
+        l.VerticalAlignment = Fluent.IsMobile and Enum.VerticalAlignment.Top or Enum.VerticalAlignment.Bottom
         l.HorizontalAlignment = Enum.HorizontalAlignment.Right
         l.Padding = UDim.new(0, 8)
         l.SortOrder = Enum.SortOrder.LayoutOrder
