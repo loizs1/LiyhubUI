@@ -151,15 +151,22 @@ local function button(p, s, h)
 end
 
 local function parentGui()
+    local okH, h = pcall(function() return gethui and gethui() end)
+    if okH and h then return h end
+    local okCg, cg = pcall(function() return CoreGui end)
+    if okCg and cg then
+        local test = Instance.new("Folder")
+        local pOk = pcall(function()
+            test.Parent = cg
+            test:Destroy()
+        end)
+        if pOk then return cg end
+    end
     local lp = Players.LocalPlayer or LocalPlayer
     if lp then
         local pg = lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui", 5)
         if pg then return pg end
     end
-    local ok, h = pcall(function() return gethui and gethui() end)
-    if ok and h then return h end
-    local okCg, cg = pcall(function() return CoreGui end)
-    if okCg and cg then return cg end
     return game:GetService("StarterGui")
 end
 
@@ -175,6 +182,11 @@ local function drag(handle, target)
                     active = false
                 end
             end)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            active = false
         end
     end)
     UserInputService.InputChanged:Connect(function(i)
@@ -592,6 +604,9 @@ local function addSection(tab, titleText, iconOptional)
         b.MouseButton1Click:Connect(function() safe(o.Callback) end)
         local e = {
             Frame = f,
+            Button = b,
+            Click = function() safe(o.Callback) end,
+            Fire = function() safe(o.Callback) end,
             SetSearch = function(_, q)
                 f.Visible = q == "" or string.find(string.lower(o.Title or o.Name or ""), q, 1, true) ~= nil
             end,
@@ -1849,8 +1864,18 @@ function Fluent:CreateWindow(o)
     local gui = Instance.new("ScreenGui")
     gui.Name = "LiyhubFluent_Main"
     gui.ResetOnSpawn = false
+    gui.DisplayOrder = 2147483647
     gui.IgnoreGuiInset = true
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    if typeof(syn) == "table" and typeof(syn.protect_gui) == "function" then
+        pcall(syn.protect_gui, gui)
+    elseif typeof(protect_gui) == "function" then
+        pcall(protect_gui, gui)
+    elseif typeof(protectgui) == "function" then
+        pcall(protectgui, gui)
+    end
+
     gui.Parent = parentGui()
     w.Gui = gui
 
@@ -2098,6 +2123,7 @@ function Fluent:CreateWindow(o)
         icon.Image = iconAsset
         icon.ImageColor3 = Color3.fromRGB(245, 248, 255)
         icon.ZIndex = 6
+        icon.Active = false
         icon.Parent = b
 
         b.MouseEnter:Connect(function()
@@ -2334,7 +2360,7 @@ function Fluent:CreateWindow(o)
         pcall(updateProfileLayout)
     end
 
-    -- Android Floating Pin Tab Widget (Square rounded like UI cards, logo fully fills size)
+    -- Android Floating Pin Tab Widget (Always on Top of Game UIs)
     local pillDim = isMobile and 38 or 42
     local floatingPill = Instance.new("TextButton")
     floatingPill.Name = "LiyhubAndroidPinTab"
@@ -2346,11 +2372,12 @@ function Fluent:CreateWindow(o)
     floatingPill.BackgroundTransparency = 0.05
     floatingPill.ClipsDescendants = true
     floatingPill.Visible = false
-    floatingPill.ZIndex = 100
+    floatingPill.ZIndex = 999999
     floatingPill.Parent = gui
     corner(floatingPill, 10)
     local pillStroke = stroke(floatingPill, Color3.fromRGB(255, 255, 255), 0.7)
     pillStroke.Thickness = 1
+    pillStroke.ZIndex = 999999
     drag(floatingPill, floatingPill)
 
     local pillLogo = Instance.new("ImageLabel")
@@ -2361,7 +2388,7 @@ function Fluent:CreateWindow(o)
     pillLogo.BackgroundTransparency = 1
     pillLogo.Image = resolveLogoAsset()
     pillLogo.ScaleType = Enum.ScaleType.Fit
-    pillLogo.ZIndex = 101
+    pillLogo.ZIndex = 1000000
     pillLogo.Active = false
     pillLogo.Parent = floatingPill
     corner(pillLogo, 10)
@@ -2375,8 +2402,36 @@ function Fluent:CreateWindow(o)
         tween(pillStroke, 0.15, { Transparency = 0.7, Color = Color3.fromRGB(255, 255, 255) })
     end)
 
-    floatingPill.MouseButton1Click:Connect(function()
+    local wasDragged = false
+    local pillStartPos = nil
+    floatingPill.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            wasDragged = false
+            pillStartPos = input.Position
+        end
+    end)
+    floatingPill.InputChanged:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and pillStartPos then
+            if (input.Position - pillStartPos).Magnitude > 8 then
+                wasDragged = true
+            end
+        end
+    end)
+
+    local lastPinClick = 0
+    local function handlePinClick()
+        local now = os.clock()
+        if now - lastPinClick < 0.15 then return end
+        lastPinClick = now
+        if wasDragged then
+            wasDragged = false
+            return
+        end
         w:Open()
+    end
+    floatingPill.MouseButton1Click:Connect(handlePinClick)
+    pcall(function()
+        floatingPill.Activated:Connect(handlePinClick)
     end)
     w.FloatingPill = floatingPill
     w.AndroidPinTab = floatingPill
@@ -3177,9 +3232,17 @@ function Fluent:Notify(o)
             notifyGui = Instance.new("ScreenGui")
             notifyGui.Name = "LiyhubNotifyGui"
             notifyGui.ResetOnSpawn = false
+            notifyGui.DisplayOrder = 2147483647
             notifyGui.IgnoreGuiInset = true
             notifyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-            notifyGui.DisplayOrder = 9999
+
+            if typeof(syn) == "table" and typeof(syn.protect_gui) == "function" then
+                pcall(syn.protect_gui, notifyGui)
+            elseif typeof(protect_gui) == "function" then
+                pcall(protect_gui, notifyGui)
+            elseif typeof(protectgui) == "function" then
+                pcall(protectgui, notifyGui)
+            end
             notifyGui.Parent = pGui
         end
 
@@ -3286,6 +3349,8 @@ function Fluent:SetTheme(name)
     end
 end
 
-g.Liyhub = Fluent
-g.NeverLose = Fluent
+pcall(function()
+    g.Liyhub = Fluent
+    g.NeverLose = Fluent
+end)
 return Fluent
