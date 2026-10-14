@@ -6,6 +6,8 @@
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Stats = game:GetService("Stats")
 local TextService = game:GetService("TextService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -171,46 +173,42 @@ local function parentGui()
 end
 
 local function drag(handle, target)
-    local active, start, pos
+    local moveConn, endConn
     handle.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            active = true
-            start = i.Position
-            pos = target.Position
-            i.Changed:Connect(function()
-                if i.UserInputState == Enum.UserInputState.End then
-                    active = false
+            if moveConn then moveConn:Disconnect() moveConn = nil end
+            if endConn then endConn:Disconnect() endConn = nil end
+
+            local start = i.Position
+            local pos = target.Position
+
+            moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+                if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+                    local d = moveInput.Position - start
+                    local nx = pos.X.Offset + d.X
+                    local ny = pos.Y.Offset + d.Y
+                    local cam = workspace.CurrentCamera
+                    if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
+                        local vp = cam.ViewportSize
+                        local ax = target.AnchorPoint.X
+                        local ay = target.AnchorPoint.Y
+                        local sx = target.AbsoluteSize.X
+                        local sy = target.AbsoluteSize.Y
+                        local curScreenX = math.clamp(vp.X * pos.X.Scale + nx, ax * sx - sx + 40, vp.X - 40 + ax * sx)
+                        local curScreenY = math.clamp(vp.Y * pos.Y.Scale + ny, ay * sy, vp.Y - 40 + ay * sy)
+                        nx = curScreenX - vp.X * pos.X.Scale
+                        ny = curScreenY - vp.Y * pos.Y.Scale
+                    end
+                    target.Position = UDim2.new(pos.X.Scale, nx, pos.Y.Scale, ny)
                 end
             end)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            active = false
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(i)
-        if active and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-            local d = i.Position - start
-            local nx = pos.X.Offset + d.X
-            local ny = pos.Y.Offset + d.Y
-            pcall(function()
-                local cam = workspace.CurrentCamera
-                if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
-                    local vp = cam.ViewportSize
-                    local ax = target.AnchorPoint.X
-                    local ay = target.AnchorPoint.Y
-                    local sx = target.AbsoluteSize.X
-                    local sy = target.AbsoluteSize.Y
-                    local curScreenX = vp.X * pos.X.Scale + nx
-                    local curScreenY = vp.Y * pos.Y.Scale + ny
-                    curScreenX = math.clamp(curScreenX, ax * sx - sx + 40, vp.X - 40 + ax * sx)
-                    curScreenY = math.clamp(curScreenY, ay * sy, vp.Y - 40 + ay * sy)
-                    nx = curScreenX - vp.X * pos.X.Scale
-                    ny = curScreenY - vp.Y * pos.Y.Scale
+
+            endConn = UserInputService.InputEnded:Connect(function(endInput)
+                if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                    if moveConn then moveConn:Disconnect() moveConn = nil end
+                    if endConn then endConn:Disconnect() endConn = nil end
                 end
             end)
-            target.Position = UDim2.new(pos.X.Scale, nx, pos.Y.Scale, ny)
         end
     end)
 end
@@ -239,19 +237,65 @@ local function resolveLogoAsset()
         return logoAsset
     end
 
-    -- 2. Studio / Local content fallback
+    -- 2. Guaranteed Roblox Cloud Asset ID (Always valid in Studio & executors)
+    return "rbxassetid://79284224001788"
+end
+
+local function resolveExecutorName()
+    local name = nil
+
+    -- 1. Standard UNC API: identifyexecutor()
+    if typeof(identifyexecutor) == "function" then
+        local ok, n, v = pcall(identifyexecutor)
+        if ok and n and tostring(n) ~= "" then
+            name = tostring(n)
+            if v and tostring(v) ~= "" and not string.find(string.lower(name), string.lower(tostring(v)), 1, true) then
+                name = name .. " " .. tostring(v)
+            end
+        end
+    end
+
+    -- 2. Alternative UNC API: getexecutorname()
+    if not name and typeof(getexecutorname) == "function" then
+        local ok, n = pcall(getexecutorname)
+        if ok and n and tostring(n) ~= "" then
+            name = tostring(n)
+        end
+    end
+
+    -- 3. Environment signature checks & hybrid detection (e.g. Delta / Potassium)
     pcall(function()
-        if game:GetService("RunService"):IsStudio() then
-            logoAsset = "rbxasset://textures/liyhub_logo.png"
+        if typeof(getgenv) == "function" then
+            local g = getgenv()
+            local isDelta = (name and string.find(string.lower(name), "delta", 1, true) ~= nil) or g.DELTA_LOADED or g.Delta
+            local isPotassium = g.POTASSIUM or g.Potassium or (name and string.find(string.lower(name), "potassium", 1, true) ~= nil)
+
+            if isDelta and isPotassium then
+                name = "Delta/Potassium"
+            elseif isPotassium and not name then
+                name = "Potassium"
+            elseif isDelta and not name then
+                name = "Delta"
+            elseif not name then
+                if g.CODEX_LOADED or g.Codex then
+                    name = "Codex"
+                elseif g.WAVE_LOADED or g.Wave then
+                    name = "Wave"
+                elseif g.ARCEUS_LOADED or g.ArceusX then
+                    name = "Arceus X"
+                elseif g.HYDROGEN_LOADED or g.Hydrogen then
+                    name = "Hydrogen"
+                end
+            end
         end
     end)
 
-    if logoAsset and logoAsset ~= "" then
-        return logoAsset
+    -- 4. Studio / test runtime fallback
+    if not name and game:GetService("RunService"):IsStudio() then
+        name = "Studio"
     end
 
-    -- 3. Guaranteed Roblox Cloud Asset ID fallback
-    return "rbxassetid://123085513549252"
+    return name or "Native"
 end
 
 local LucideIcons = {
@@ -750,26 +794,28 @@ local function addSection(tab, titleText, iconOptional)
             set(min + (max - min) * alpha, true)
         end
 
+        local moveConn, endConn
         rail.InputBegan:Connect(function(i)
             if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
+                if moveConn then moveConn:Disconnect() moveConn = nil end
+                if endConn then endConn:Disconnect() endConn = nil end
+
                 tween(knob, 0.1, { Size = UDim2.fromOffset(16, 16) })
                 updateDrag(i)
-            end
-        end)
 
-        UserInputService.InputChanged:Connect(function(i)
-            if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-                updateDrag(i)
-            end
-        end)
+                moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+                    if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+                        updateDrag(moveInput)
+                    end
+                end)
 
-        UserInputService.InputEnded:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-                if dragging then
-                    dragging = false
-                    tween(knob, 0.1, { Size = UDim2.fromOffset(13, 13) })
-                end
+                endConn = UserInputService.InputEnded:Connect(function(endInput)
+                    if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                        if moveConn then moveConn:Disconnect() moveConn = nil end
+                        if endConn then endConn:Disconnect() endConn = nil end
+                        tween(knob, 0.1, { Size = UDim2.fromOffset(13, 13) })
+                    end
+                end)
             end
         end)
 
@@ -1397,29 +1443,34 @@ local function addSection(tab, titleText, iconOptional)
             chVal.Size = UDim2.fromOffset(34, 18)
             chVal.TextXAlignment = Enum.TextXAlignment.Right
 
-            local chDrag = false
+            local chMoveConn, chEndConn
             chTrack.InputBegan:Connect(function(i)
                 if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-                    chDrag = true
-                    local alpha = math.clamp((i.Position.X - chTrack.AbsolutePosition.X) / chTrack.AbsoluteSize.X, 0, 1)
-                    local v = math.floor(alpha * 255)
-                    chFill.Size = UDim2.fromScale(alpha, 1)
-                    chVal.Text = tostring(v)
-                    updateColor(ch.Set(v), true)
-                end
-            end)
-            UserInputService.InputChanged:Connect(function(i)
-                if chDrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-                    local alpha = math.clamp((i.Position.X - chTrack.AbsolutePosition.X) / chTrack.AbsoluteSize.X, 0, 1)
-                    local v = math.floor(alpha * 255)
-                    chFill.Size = UDim2.fromScale(alpha, 1)
-                    chVal.Text = tostring(v)
-                    updateColor(ch.Set(v), true)
-                end
-            end)
-            UserInputService.InputEnded:Connect(function(i)
-                if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-                    chDrag = false
+                    if chMoveConn then chMoveConn:Disconnect() chMoveConn = nil end
+                    if chEndConn then chEndConn:Disconnect() chEndConn = nil end
+
+                    local function updateChannel(input)
+                        local trackWidth = math.max(chTrack.AbsoluteSize.X, 1)
+                        local alpha = math.clamp((input.Position.X - chTrack.AbsolutePosition.X) / trackWidth, 0, 1)
+                        local v = math.floor(alpha * 255)
+                        chFill.Size = UDim2.fromScale(alpha, 1)
+                        chVal.Text = tostring(v)
+                        updateColor(ch.Set(v), true)
+                    end
+                    updateChannel(i)
+
+                    chMoveConn = UserInputService.InputChanged:Connect(function(moveInput)
+                        if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+                            updateChannel(moveInput)
+                        end
+                    end)
+
+                    chEndConn = UserInputService.InputEnded:Connect(function(endInput)
+                        if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                            if chMoveConn then chMoveConn:Disconnect() chMoveConn = nil end
+                            if chEndConn then chEndConn:Disconnect() chEndConn = nil end
+                        end
+                    end)
                 end
             end)
             sliderTracks[ch.Name] = { Fill = chFill, Val = chVal, Channel = ch }
@@ -2044,21 +2095,46 @@ function Fluent:CreateWindow(o)
     local titleX = isMobile and 48 or 62
     local rightReserved = isMobile and -205 or -340
 
-    local title = text(bar, w.Title, isMobile and 14 or 16)
+    local titleContainer = Instance.new("Frame")
+    titleContainer.Name = "TitleContainer"
+    titleContainer.BackgroundTransparency = 1
+    titleContainer.Size = UDim2.new(1, rightReserved, 0, isMobile and 18 or 20)
+    titleContainer.Position = UDim2.fromOffset(titleX, (w.SubTitle and w.SubTitle ~= "") and (isMobile and 8 or 10) or (isMobile and 15 or 19))
+    titleContainer.ClipsDescendants = false
+    titleContainer.ZIndex = 5
+    titleContainer.Parent = bar
+
+    local titleLayout = Instance.new("UIListLayout")
+    titleLayout.FillDirection = Enum.FillDirection.Horizontal
+    titleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    titleLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    titleLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    titleLayout.Padding = UDim.new(0, 12)
+    titleLayout.Parent = titleContainer
+
+    local title = Instance.new("TextLabel")
+    title.Name = "TitleLabel"
+    title.Text = w.Title
     title.Font = Enum.Font.GothamBold
+    title.TextSize = isMobile and 14 or 16
+    title.TextColor3 = Color3.fromRGB(245, 248, 255)
+    title.BackgroundTransparency = 1
+    title.AutomaticSize = Enum.AutomaticSize.X
+    title.Size = UDim2.new(0, 0, 1, 0)
     title.TextTruncate = Enum.TextTruncate.AtEnd
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.LayoutOrder = 1
+    title.ZIndex = 5
+    title.Parent = titleContainer
+
 
     local sub = text(bar, w.SubTitle or "", isMobile and 10 or 11, self.CurrentTheme.SubText)
     sub.TextTruncate = Enum.TextTruncate.AtEnd
     if w.SubTitle and w.SubTitle ~= "" then
-        title.Position = UDim2.fromOffset(titleX, isMobile and 8 or 10)
-        title.Size = UDim2.new(1, rightReserved, 0, isMobile and 18 or 20)
-        sub.Position = UDim2.fromOffset(titleX + 1, isMobile and 26 or 30)
+        sub.Position = UDim2.fromOffset(titleX + 1, isMobile and 28 or 31)
         sub.Size = UDim2.new(1, rightReserved, 0, isMobile and 14 or 16)
         sub.Visible = true
     else
-        title.Position = UDim2.fromOffset(titleX, isMobile and 15 or 19)
-        title.Size = UDim2.new(1, rightReserved, 0, isMobile and 20 or 22)
         sub.Visible = false
     end
 
@@ -2171,7 +2247,7 @@ function Fluent:CreateWindow(o)
     sidebar.BackgroundColor3 = self.CurrentTheme.Surface
     sidebar.BackgroundTransparency = 0.2
     sidebar.BorderSizePixel = 0
-    sidebar.Size = UDim2.new(1, 0, 1, isMobile and -50 or -56)
+    sidebar.Size = UDim2.new(1, 0, 1, isMobile and -86 or -98)
     sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
     sidebar.AutomaticCanvasSize = Enum.AutomaticSize.None
     sidebar.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -2197,6 +2273,20 @@ function Fluent:CreateWindow(o)
     pcall(function()
         sl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateSidebarCanvas)
     end)
+
+    -- Pinned Bottom Tabs Container (Directly above Profile Card, full width)
+    local bottomTabs = Instance.new("Frame")
+    bottomTabs.Name = "BottomTabs"
+    bottomTabs.BackgroundTransparency = 1
+    bottomTabs.Size = UDim2.new(1, 0, 0, isMobile and 34 or 40)
+    bottomTabs.Position = UDim2.new(0, 0, 1, isMobile and -80 or -92)
+    bottomTabs.ZIndex = 4
+    bottomTabs.Parent = sidebarContainer
+
+    local btl = Instance.new("UIListLayout")
+    btl.Padding = UDim.new(0, 4)
+    btl.SortOrder = Enum.SortOrder.LayoutOrder
+    btl.Parent = bottomTabs
 
     -- Bottom-Left Neverlose User Profile Card
     local profileCard = Instance.new("Frame")
@@ -2322,18 +2412,130 @@ function Fluent:CreateWindow(o)
         userName.TextSize = isMob and 9 or 10
         userName.Visible = true
     end
-    updateProfileLayout()
+    pcall(updateProfileLayout)
 
-    -- Pages Area
+    -- Pages Area (leaves space for balanced bottom footer)
+    local footerH = isMobile and 22 or 24
     local pages = Instance.new("Frame")
     pages.Name = "Pages"
     pages.BackgroundTransparency = 1
     pages.Position = UDim2.fromOffset(w.TabWidth + 10, 0)
-    pages.Size = UDim2.new(1, -w.TabWidth - 10, 1, 0)
+    pages.Size = UDim2.new(1, -w.TabWidth - 10, 1, -footerH - 4)
     pages.ZIndex = 2
     pages.Parent = body
     w.Sidebar = sidebar
     w.Pages = pages
+
+    -- Seamless Bottom Footer Bar (Flat, integrated directly on UI background, no box/tab/nest)
+    local footerBar = Instance.new("Frame")
+    footerBar.Name = "BottomFooterBar"
+    footerBar.BackgroundTransparency = 1
+    footerBar.BorderSizePixel = 0
+    footerBar.Position = UDim2.new(0, w.TabWidth + 10, 1, -footerH)
+    footerBar.Size = UDim2.new(1, -w.TabWidth - 10, 0, footerH)
+    footerBar.ZIndex = 4
+    footerBar.Parent = body
+    w.FooterBar = footerBar
+
+    -- Left Telemetry
+    local statsLabel = Instance.new("TextLabel")
+    statsLabel.Name = "TelemetryStats"
+    statsLabel.Font = Enum.Font.GothamMedium
+    statsLabel.TextSize = isMobile and 10 or 11
+    statsLabel.TextColor3 = Color3.fromRGB(148, 163, 184)
+    statsLabel.BackgroundTransparency = 1
+    statsLabel.BorderSizePixel = 0
+    statsLabel.Position = UDim2.new(0, 4, 0, 0)
+    statsLabel.Size = UDim2.new(0.62, -4, 1, 0)
+    statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statsLabel.TextYAlignment = Enum.TextYAlignment.Center
+    statsLabel.RichText = true
+    statsLabel.ZIndex = 4
+    statsLabel.Parent = footerBar
+
+    -- Right Filler Info (Clock & Framework Build Tag - Fills right side seamlessly)
+    local rightInfoLabel = Instance.new("TextLabel")
+    rightInfoLabel.Name = "FooterRightInfo"
+    rightInfoLabel.Font = Enum.Font.GothamMedium
+    rightInfoLabel.TextSize = isMobile and 10 or 11
+    rightInfoLabel.TextColor3 = Color3.fromRGB(148, 163, 184)
+    rightInfoLabel.BackgroundTransparency = 1
+    rightInfoLabel.BorderSizePixel = 0
+    rightInfoLabel.Position = UDim2.new(0.62, 0, 0, 0)
+    rightInfoLabel.Size = UDim2.new(0.38, -6, 1, 0)
+    rightInfoLabel.TextXAlignment = Enum.TextXAlignment.Right
+    rightInfoLabel.TextYAlignment = Enum.TextYAlignment.Center
+    rightInfoLabel.RichText = true
+    rightInfoLabel.ZIndex = 4
+    rightInfoLabel.Parent = footerBar
+
+    -- Server Key Validation & Tier Type Resolver
+    local keyType = "Freemium"
+    if o.Type or o.Tier then
+        keyType = tostring(o.Type or o.Tier)
+    elseif g.LiyHubIsPremium or (g.LiyHubTier and string.lower(tostring(g.LiyHubTier)) == "premium") then
+        keyType = "Premium"
+    elseif g.LiyHubTier then
+        keyType = tostring(g.LiyHubTier)
+    end
+    keyType = keyType:sub(1,1):upper() .. keyType:sub(2):lower()
+
+    local execName = resolveExecutorName()
+    local curFps = 60
+    local curPing = 0
+    local frameCount = 0
+    local lastStatsTime = os.clock()
+
+    local function updateStatsText()
+        local pingColor = curPing < 80 and "#4ade80" or (curPing < 160 and "#facc15" or "#f87171")
+        local fpsColor = curFps >= 45 and "#38bdf8" or (curFps >= 25 and "#facc15" or "#f87171")
+        statsLabel.Text = string.format(
+            "Type: <font color=\"#ffffff\"><b>%s</b></font>     <font color=\"#475569\">|</font>     <font color=\"#ffffff\"><b>%s</b></font>     <font color=\"#475569\">|</font>     <font color=\"%s\">%dms</font>     <font color=\"#475569\">|</font>     <font color=\"%s\">%d FPS</font>",
+            keyType, execName, pingColor, curPing, fpsColor, curFps
+        )
+        local timeStr = os.date("%I:%M:%S %p")
+        local footerBrand = tostring(o.FooterTag or o.Brand or "Liyhub Client")
+        rightInfoLabel.Text = string.format(
+            "<font color=\"#64748b\">%s</font>     <font color=\"#475569\">|</font>     <font color=\"#ffffff\"><b>%s</b></font>",
+            footerBrand, timeStr
+        )
+    end
+    updateStatsText()
+
+    local statsConn = RunService.RenderStepped:Connect(function()
+        frameCount = frameCount + 1
+        local now = os.clock()
+        if now - lastStatsTime >= 0.8 then
+            curFps = math.floor(frameCount / math.max(now - lastStatsTime, 0.001))
+            frameCount = 0
+            lastStatsTime = now
+
+            pcall(function()
+                local stats = game:GetService("Stats")
+                local net = stats:FindFirstChild("Network")
+                local ssi = net and net:FindFirstChild("ServerStatsItem")
+                local dataPing = ssi and ssi:FindFirstChild("Data Ping")
+                if dataPing then
+                    curPing = math.floor(dataPing:GetValue())
+                else
+                    local perf = stats:FindFirstChild("PerformanceStats")
+                    local pingItem = perf and perf:FindFirstChild("Ping")
+                    if pingItem then
+                        curPing = math.floor(pingItem:GetValue())
+                    end
+                end
+            end)
+
+            updateStatsText()
+        end
+    end)
+
+    gui.Destroying:Connect(function()
+        if statsConn then
+            statsConn:Disconnect()
+            statsConn = nil
+        end
+    end)
 
     function w:SelectTab(i)
         local t
@@ -2496,8 +2698,13 @@ function Fluent:CreateWindow(o)
         if sidebarContainer then
             tween(sidebarContainer, 0.2, { Size = UDim2.new(0, targetTabW, 1, 0) })
         end
+        local fH = (isMobile or (targetTabW < 140)) and 22 or 24
         if pages then
-            tween(pages, 0.2, { Position = UDim2.fromOffset(targetTabW + 10, 0), Size = UDim2.new(1, -targetTabW - 10, 1, 0) })
+            tween(pages, 0.2, { Position = UDim2.fromOffset(targetTabW + 10, 0), Size = UDim2.new(1, -targetTabW - 10, 1, -fH - 4) })
+        end
+        if footerBar then
+            footerBar.Position = UDim2.new(0, targetTabW + 10, 1, -fH)
+            footerBar.Size = UDim2.new(1, -targetTabW - 10, 0, fH)
         end
         pcall(updateProfileLayout)
     end
@@ -2514,20 +2721,28 @@ function Fluent:CreateWindow(o)
             iconAsset = iconOptional
         end
 
-        local t = { Window = self, Title = titleText, Icon = iconAsset, Elements = {} }
+        local isBottomTab = (type(to) == "table" and to.PinnedBottom)
+            or string.find(string.lower(titleText), "ui setting")
+            or string.find(string.lower(titleText), "setting")
+            or string.lower(titleText) == "config"
+
+        local t = { Window = self, Title = titleText, Icon = iconAsset, Elements = {}, IsBottomTab = isBottomTab }
         table.insert(self._tabs, t)
         self.Tabs[t.Title:gsub("%W", "")] = t
 
         local tb = Instance.new("TextButton")
         tb.AutoButtonColor = false
         tb.Text = ""
-        tb.BackgroundColor3 = Fluent.CurrentTheme.Surface2
-        tb.BackgroundTransparency = 0.45
+        tb.BackgroundColor3 = isBottomTab and Fluent.CurrentTheme.Surface or Fluent.CurrentTheme.Surface2
+        tb.BackgroundTransparency = isBottomTab and 0.2 or 0.45
         tb.Size = UDim2.new(1, 0, 0, isMobile and 32 or 38)
         tb.ZIndex = 4
-        tb.LayoutOrder = #self._tabs
-        tb.Parent = sidebar
+        tb.LayoutOrder = isBottomTab and 1 or #self._tabs
+        tb.Parent = isBottomTab and bottomTabs or sidebar
         corner(tb, 8)
+        if isBottomTab then
+            stroke(tb, Fluent.CurrentTheme.Border, 0.35)
+        end
 
         local accent = Instance.new("Frame")
         accent.BackgroundColor3 = Fluent.CurrentTheme.Accent
@@ -2623,7 +2838,9 @@ function Fluent:CreateWindow(o)
         end)
         tb.MouseLeave:Connect(function()
             if self.ActiveTab ~= t then
-                tween(tb, 0.1, { BackgroundTransparency = 0.45, BackgroundColor3 = Fluent.CurrentTheme.Surface2 })
+                local bg = isBottomTab and Fluent.CurrentTheme.Surface or Fluent.CurrentTheme.Surface2
+                local trans = isBottomTab and 0.2 or 0.45
+                tween(tb, 0.1, { BackgroundTransparency = trans, BackgroundColor3 = bg })
                 if iconElement and iconElement:IsA("ImageLabel") then
                     tween(iconElement, 0.1, { ImageColor3 = Fluent.CurrentTheme.SubText })
                 end
@@ -2641,8 +2858,13 @@ function Fluent:CreateWindow(o)
                     end
                 end
                 x.Page.Visible = false
-                x.Button.BackgroundColor3 = Fluent.CurrentTheme.Surface2
-                x.Button.BackgroundTransparency = 0.45
+                if x.IsBottomTab then
+                    x.Button.BackgroundColor3 = Fluent.CurrentTheme.Surface
+                    x.Button.BackgroundTransparency = 0.2
+                else
+                    x.Button.BackgroundColor3 = Fluent.CurrentTheme.Surface2
+                    x.Button.BackgroundTransparency = 0.45
+                end
                 x.Accent.BackgroundTransparency = 1
                 x.Label.TextColor3 = Fluent.CurrentTheme.SubText
                 if x.IconElement and x.IconElement:IsA("ImageLabel") then
@@ -2663,7 +2885,7 @@ function Fluent:CreateWindow(o)
                     pcall(el.Resize)
                 end
             end
-            if (self.Title == "Settings" or self.Title == "settings") then
+            if (string.lower(self.Title) == "settings" or string.lower(self.Title) == "ui setting") then
                 local activeProf = self.Window.ActiveConfigProfile or Fluent.ActiveConfigProfile
                 if activeProf and activeProf ~= "" then
                     if type(self.Window._profileInput) == "table" and type(self.Window._profileInput.SetValue) == "function" then

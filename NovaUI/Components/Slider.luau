@@ -78,8 +78,6 @@ function Slider.new(parent: Instance, config: { Name: string, Min: number, Max: 
     })
     Utility.AddCorner(self.Knob, 6)
 
-    local dragging = false
-
     local function updateValue(inputPosition: Vector3)
         local trackAbsPos = self.Track.AbsolutePosition.X
         local trackAbsSize = self.Track.AbsoluteSize.X
@@ -91,24 +89,32 @@ function Slider.new(parent: Instance, config: { Name: string, Min: number, Max: 
         self:Set(steppedVal)
     end
 
+    local moveConn, endConn
     self._maid:GiveTask(self.Track.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            updateValue(input.Position)
-        end
-    end))
+            if moveConn then moveConn:Disconnect() moveConn = nil end
+            if endConn then endConn:Disconnect() endConn = nil end
 
-    self._maid:GiveTask(UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end))
-
-    self._maid:GiveTask(UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             updateValue(input.Position)
+
+            moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+                if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+                    updateValue(moveInput.Position)
+                end
+            end)
+
+            endConn = UserInputService.InputEnded:Connect(function(endInput)
+                if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                    if moveConn then moveConn:Disconnect() moveConn = nil end
+                    if endConn then endConn:Disconnect() endConn = nil end
+                end
+            end)
         end
     end))
+    self._maid:GiveTask(function()
+        if moveConn then moveConn:Disconnect() end
+        if endConn then endConn:Disconnect() end
+    end)
 
     self._maid:GiveTask(Theme.OnThemeChanged(function(t)
         self.Frame.BackgroundColor3 = t.SurfaceSecondary

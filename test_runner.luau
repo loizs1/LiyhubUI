@@ -150,20 +150,41 @@ end
 local function GetSpawnedPets()
     local pets = {}
     local seen = {}
+
+    -- Fast path: Tagged collection
+    local tagged = CollectionService:GetTagged("Pet")
+    if #tagged > 0 then
+        for _, desc in ipairs(tagged) do
+            if desc:IsA("Model") and not seen[desc] then
+                seen[desc] = true
+                local primary = desc.PrimaryPart or desc:FindFirstChildWhichIsA("BasePart")
+                local name = desc:GetAttribute("PetName") or desc.Name
+                local weight = tonumber(desc:GetAttribute("Weight")) or 1
+                table.insert(pets, {
+                    Model = desc,
+                    Name = name,
+                    PrimaryPart = primary,
+                    Weight = weight,
+                })
+            end
+        end
+        return pets
+    end
+
     local searchRoots = {
         workspace:FindFirstChild("Pets"),
         workspace:FindFirstChild("SpawnedPets"),
         workspace:FindFirstChild("Ranch"),
         workspace:FindFirstChild("Plots"),
-        workspace,
     }
 
+    local hasSpecificRoot = false
     for _, root in ipairs(searchRoots) do
         if root then
+            hasSpecificRoot = true
             for _, desc in ipairs(root:GetDescendants()) do
                 if desc:IsA("Model") and not seen[desc] then
                     local isPet = desc:HasTag("Pet")
-                        or CollectionService:HasTag(desc, "Pet")
                         or desc:GetAttribute("PetKey")
                         or desc:FindFirstChild("PetMountJoint")
                         or desc:FindFirstChildOfClass("ProximityPrompt")
@@ -184,6 +205,31 @@ local function GetSpawnedPets()
             end
         end
     end
+
+    -- Fallback: shallow scan direct workspace children if no dedicated root found
+    if not hasSpecificRoot then
+        for _, desc in ipairs(workspace:GetChildren()) do
+            if desc:IsA("Model") and not seen[desc] then
+                local isPet = desc:HasTag("Pet")
+                    or desc:GetAttribute("PetKey")
+                    or desc:FindFirstChild("PetMountJoint")
+
+                if isPet then
+                    seen[desc] = true
+                    local primary = desc.PrimaryPart or desc:FindFirstChildWhichIsA("BasePart")
+                    local name = desc:GetAttribute("PetName") or desc.Name
+                    local weight = tonumber(desc:GetAttribute("Weight")) or 1
+                    table.insert(pets, {
+                        Model = desc,
+                        Name = name,
+                        PrimaryPart = primary,
+                        Weight = weight,
+                    })
+                end
+            end
+        end
+    end
+
     return pets
 end
 
@@ -397,22 +443,30 @@ local espFolder = Instance.new("Folder")
 espFolder.Name = "LiyhubESP"
 pcall(function() espFolder.Parent = (gethui and gethui()) or LocalPlayer:FindFirstChild("PlayerGui") or workspace end)
 
+local activeHighlights = {}
+
 local function UpdateESP()
     pcall(function()
-        espFolder:ClearAllChildren()
+        local activeSet = {}
 
         -- Pet ESP
         if Config.PetESP then
             for _, pet in ipairs(GetSpawnedPets()) do
                 if pet.Model and pet.Model.Parent then
-                    local hl = Instance.new("Highlight")
-                    hl.Name = "Pet_" .. pet.Name
-                    hl.Adornee = pet.Model
+                    local id = "Pet_" .. tostring(pet.Model)
+                    activeSet[id] = true
+                    local hl = activeHighlights[id]
+                    if not hl or not hl.Parent then
+                        hl = Instance.new("Highlight")
+                        hl.Name = id
+                        hl.Adornee = pet.Model
+                        hl.FillTransparency = 0.5
+                        hl.OutlineColor = Color3.new(1, 1, 1)
+                        hl.OutlineTransparency = 0.2
+                        hl.Parent = espFolder
+                        activeHighlights[id] = hl
+                    end
                     hl.FillColor = Config.ESPAccentColor
-                    hl.FillTransparency = 0.5
-                    hl.OutlineColor = Color3.new(1, 1, 1)
-                    hl.OutlineTransparency = 0.2
-                    hl.Parent = espFolder
                 end
             end
         end
@@ -421,15 +475,29 @@ local function UpdateESP()
         if Config.PlayerESP then
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                    local hl = Instance.new("Highlight")
-                    hl.Name = "Plr_" .. plr.Name
-                    hl.Adornee = plr.Character
-                    hl.FillColor = Color3.fromRGB(255, 60, 60)
-                    hl.FillTransparency = 0.55
-                    hl.OutlineColor = Color3.new(1, 1, 1)
-                    hl.OutlineTransparency = 0.1
-                    hl.Parent = espFolder
+                    local id = "Plr_" .. plr.Name
+                    activeSet[id] = true
+                    local hl = activeHighlights[id]
+                    if not hl or not hl.Parent then
+                        hl = Instance.new("Highlight")
+                        hl.Name = id
+                        hl.Adornee = plr.Character
+                        hl.FillColor = Color3.fromRGB(255, 60, 60)
+                        hl.FillTransparency = 0.55
+                        hl.OutlineColor = Color3.new(1, 1, 1)
+                        hl.OutlineTransparency = 0.1
+                        hl.Parent = espFolder
+                        activeHighlights[id] = hl
+                    end
                 end
+            end
+        end
+
+        -- Clean up dead highlights
+        for id, hl in pairs(activeHighlights) do
+            if not activeSet[id] then
+                pcall(function() hl:Destroy() end)
+                activeHighlights[id] = nil
             end
         end
     end)
@@ -440,6 +508,10 @@ task.spawn(function()
         if Config.PetESP or Config.PlayerESP or Config.EggESP then
             UpdateESP()
         else
+            for id, hl in pairs(activeHighlights) do
+                pcall(function() hl:Destroy() end)
+                activeHighlights[id] = nil
+            end
             espFolder:ClearAllChildren()
         end
         task.wait(1.5)
@@ -478,7 +550,8 @@ if not Liyhub then return end
 -- ============================================================================
 local Window = Liyhub:CreateWindow({
     Title = "Liyhub | Ride a Pet",
-    Author = "Fluent Engine",
+    SubTitle = "Release Build",
+    FooterTag = "Liyhub Client",
 })
 
 -- ============================================================================
@@ -842,9 +915,9 @@ MoveSec:AddButton({
 })
 
 -- ============================================================================
--- TAB 7: CONFIG (Chloe X / Neverlose Profile Manager)
+-- TAB 7: UI SETTING (Chloe X / Neverlose Profile Manager)
 -- ============================================================================
-local ConfigTab = Window:AddTab("Config", "sliders")
+local ConfigTab = Window:AddTab("Ui setting", "settings")
 
 local ProfileSec = ConfigTab:AddSection("Profile Manager")
 

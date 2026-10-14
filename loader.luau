@@ -176,7 +176,7 @@ local function resolveLogoAsset()
     end)
     if logoAsset and logoAsset ~= "" then return logoAsset end
 
-    return "rbxassetid://123085513549252"
+    return "rbxassetid://79284224001788"
 end
 
 -- 6. Detect Current Game Information
