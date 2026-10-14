@@ -2438,36 +2438,41 @@ function Fluent:CreateWindow(o)
     w.FooterBar = footerBar
 
     -- Left Telemetry
+    local isMob = Fluent.IsMobile or (w.TabWidth and w.TabWidth < 140)
     local statsLabel = Instance.new("TextLabel")
     statsLabel.Name = "TelemetryStats"
     statsLabel.Font = Enum.Font.GothamMedium
-    statsLabel.TextSize = isMobile and 10 or 11
+    statsLabel.TextSize = isMob and 9.5 or 11
     statsLabel.TextColor3 = Color3.fromRGB(148, 163, 184)
     statsLabel.BackgroundTransparency = 1
     statsLabel.BorderSizePixel = 0
     statsLabel.Position = UDim2.new(0, 4, 0, 0)
-    statsLabel.Size = UDim2.new(0.62, -4, 1, 0)
+    statsLabel.Size = UDim2.new(1, isMob and -85 or -195, 1, 0)
     statsLabel.TextXAlignment = Enum.TextXAlignment.Left
     statsLabel.TextYAlignment = Enum.TextYAlignment.Center
+    statsLabel.TextTruncate = Enum.TextTruncate.AtEnd
     statsLabel.RichText = true
     statsLabel.ZIndex = 4
     statsLabel.Parent = footerBar
 
-    -- Right Filler Info (Clock & Framework Build Tag - Fills right side seamlessly)
+    -- Right Filler Info (Clock & Framework Build Tag - Anchored from right edge)
     local rightInfoLabel = Instance.new("TextLabel")
     rightInfoLabel.Name = "FooterRightInfo"
     rightInfoLabel.Font = Enum.Font.GothamMedium
-    rightInfoLabel.TextSize = isMobile and 10 or 11
+    rightInfoLabel.TextSize = isMob and 9.5 or 11
     rightInfoLabel.TextColor3 = Color3.fromRGB(148, 163, 184)
     rightInfoLabel.BackgroundTransparency = 1
     rightInfoLabel.BorderSizePixel = 0
-    rightInfoLabel.Position = UDim2.new(0.62, 0, 0, 0)
-    rightInfoLabel.Size = UDim2.new(0.38, -6, 1, 0)
+    rightInfoLabel.AnchorPoint = Vector2.new(1, 0)
+    rightInfoLabel.Position = UDim2.new(1, -6, 0, 0)
+    rightInfoLabel.Size = UDim2.new(0, isMob and 75 or 185, 1, 0)
     rightInfoLabel.TextXAlignment = Enum.TextXAlignment.Right
     rightInfoLabel.TextYAlignment = Enum.TextYAlignment.Center
     rightInfoLabel.RichText = true
     rightInfoLabel.ZIndex = 4
     rightInfoLabel.Parent = footerBar
+    w.StatsLabel = statsLabel
+    w.RightInfoLabel = rightInfoLabel
 
     -- Server Key Validation & Tier Type Resolver
     local keyType = "Freemium"
@@ -2487,20 +2492,91 @@ function Fluent:CreateWindow(o)
     local lastStatsTime = os.clock()
 
     local function updateStatsText()
+        local winW = (main and main.AbsoluteSize.X > 0 and main.AbsoluteSize.X) or (w.Size and w.Size.X.Offset) or 680
         local pingColor = curPing < 80 and "#4ade80" or (curPing < 160 and "#facc15" or "#f87171")
         local fpsColor = curFps >= 45 and "#38bdf8" or (curFps >= 25 and "#facc15" or "#f87171")
-        statsLabel.Text = string.format(
-            "Type: <font color=\"#ffffff\"><b>%s</b></font>     <font color=\"#475569\">|</font>     <font color=\"#ffffff\"><b>%s</b></font>     <font color=\"#475569\">|</font>     <font color=\"%s\">%dms</font>     <font color=\"#475569\">|</font>     <font color=\"%s\">%d FPS</font>",
-            keyType, execName, pingColor, curPing, fpsColor, curFps
-        )
-        local timeStr = os.date("%I:%M:%S %p")
         local footerBrand = tostring(o.FooterTag or o.Brand or "Liyhub Client")
-        rightInfoLabel.Text = string.format(
-            "<font color=\"#64748b\">%s</font>     <font color=\"#475569\">|</font>     <font color=\"#ffffff\"><b>%s</b></font>",
-            footerBrand, timeStr
-        )
+
+        if winW < 430 then
+            -- 1. Ultra-Compact / Small Phone (< 430px)
+            statsLabel.TextSize = 8.5
+            rightInfoLabel.TextSize = 8.5
+            statsLabel.Size = UDim2.new(1, -55, 1, 0)
+            rightInfoLabel.Size = UDim2.new(0, 50, 1, 0)
+            statsLabel.Text = string.format(
+                "<font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%dFPS</font>",
+                keyType, pingColor, curPing, fpsColor, curFps
+            )
+            rightInfoLabel.Text = string.format(
+                "<font color=\"#ffffff\"><b>%s</b></font>",
+                os.date("%I:%M %p")
+            )
+        elseif winW < 490 then
+            -- 2. Mobile Phone (430 - 489px: Android / iOS Standard)
+            statsLabel.TextSize = 9
+            rightInfoLabel.TextSize = 9
+            statsLabel.Size = UDim2.new(1, -75, 1, 0)
+            rightInfoLabel.Size = UDim2.new(0, 68, 1, 0)
+            statsLabel.Text = string.format(
+                "<font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%d FPS</font>",
+                keyType, pingColor, curPing, fpsColor, curFps
+            )
+            rightInfoLabel.Text = string.format(
+                "<font color=\"#ffffff\"><b>%s</b></font>",
+                os.date("%I:%M %p")
+            )
+        elseif winW < 570 then
+            -- 3. Compact / Mini (490 - 569px)
+            statsLabel.TextSize = 9.5
+            rightInfoLabel.TextSize = 9.5
+            statsLabel.Size = UDim2.new(1, -100, 1, 0)
+            rightInfoLabel.Size = UDim2.new(0, 92, 1, 0)
+            statsLabel.Text = string.format(
+                "<font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%d FPS</font>",
+                keyType, execName, pingColor, curPing, fpsColor, curFps
+            )
+            rightInfoLabel.Text = string.format(
+                "<font color=\"#64748b\">Liyhub</font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font>",
+                os.date("%I:%M %p")
+            )
+        elseif winW < 670 then
+            -- 4. Tablet / Medium (570 - 669px)
+            statsLabel.TextSize = 10
+            rightInfoLabel.TextSize = 10
+            statsLabel.Size = UDim2.new(1, -145, 1, 0)
+            rightInfoLabel.Size = UDim2.new(0, 135, 1, 0)
+            statsLabel.Text = string.format(
+                "Type: <font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%d FPS</font>",
+                keyType, execName, pingColor, curPing, fpsColor, curFps
+            )
+            rightInfoLabel.Text = string.format(
+                "<font color=\"#64748b\">%s</font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font>",
+                footerBrand, os.date("%I:%M %p")
+            )
+        else
+            -- 5. PC / Standard (>= 670px)
+            statsLabel.TextSize = 11
+            rightInfoLabel.TextSize = 11
+            statsLabel.Size = UDim2.new(1, -195, 1, 0)
+            rightInfoLabel.Size = UDim2.new(0, 185, 1, 0)
+            statsLabel.Text = string.format(
+                "Type: <font color=\"#ffffff\"><b>%s</b></font>   <font color=\"#475569\">|</font>   <font color=\"#ffffff\"><b>%s</b></font>   <font color=\"#475569\">|</font>   <font color=\"%s\">%dms</font>   <font color=\"#475569\">|</font>   <font color=\"%s\">%d FPS</font>",
+                keyType, execName, pingColor, curPing, fpsColor, curFps
+            )
+            rightInfoLabel.Text = string.format(
+                "<font color=\"#64748b\">%s</font>   <font color=\"#475569\">|</font>   <font color=\"#ffffff\"><b>%s</b></font>",
+                footerBrand, os.date("%I:%M:%S %p")
+            )
+        end
     end
     updateStatsText()
+    w.UpdateStatsText = updateStatsText
+
+    if main then
+        main:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            pcall(updateStatsText)
+        end)
+    end
 
     local statsConn = RunService.RenderStepped:Connect(function()
         frameCount = frameCount + 1
@@ -2699,6 +2775,7 @@ function Fluent:CreateWindow(o)
             tween(sidebarContainer, 0.2, { Size = UDim2.new(0, targetTabW, 1, 0) })
         end
         local fH = (isMobile or (targetTabW < 140)) and 22 or 24
+        local isM = (targetTabW < 140) or (targetSize.X.Offset < 540)
         if pages then
             tween(pages, 0.2, { Position = UDim2.fromOffset(targetTabW + 10, 0), Size = UDim2.new(1, -targetTabW - 10, 1, -fH - 4) })
         end
@@ -2707,6 +2784,10 @@ function Fluent:CreateWindow(o)
             footerBar.Size = UDim2.new(1, -targetTabW - 10, 0, fH)
         end
         pcall(updateProfileLayout)
+        pcall(updateStatsText)
+        task.delay(0.22, function()
+            pcall(updateStatsText)
+        end)
     end
 
     -- Tab Instantiation

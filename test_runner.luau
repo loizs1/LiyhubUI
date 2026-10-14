@@ -999,6 +999,18 @@ ProfileSec:AddButton({
     end
 })
 
+local LayoutSec = ConfigTab:AddSection("Layout & Sizing")
+
+LayoutSec:AddDropdown({
+    Name = "Window Size Preset",
+    Desc = "Switch interface scale and responsive telemetry layout.",
+    Options = { "PC", "Tablet", "Mobile", "Mini" },
+    Default = "PC",
+    Callback = function(choice)
+        Window:SetDevicePreset(choice)
+    end
+})
+
 -- Welcome Toast Notification
 Liyhub:Notify({
     Title = "Liyhub Loaded",
