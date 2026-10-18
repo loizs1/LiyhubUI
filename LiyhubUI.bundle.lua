@@ -2492,84 +2492,93 @@ function Fluent:CreateWindow(o)
     local lastStatsTime = os.clock()
 
     local function updateStatsText()
-        local winW = (main and main.AbsoluteSize.X > 0 and main.AbsoluteSize.X) or (w.Size and w.Size.X.Offset) or 680
-        local pingColor = curPing < 80 and "#4ade80" or (curPing < 160 and "#facc15" or "#f87171")
-        local fpsColor = curFps >= 45 and "#38bdf8" or (curFps >= 25 and "#facc15" or "#f87171")
-        local footerBrand = tostring(o.FooterTag or o.Brand or "Liyhub Client")
+        pcall(function()
+            local winW = 680
+            pcall(function()
+                if main and main.AbsoluteSize and main.AbsoluteSize.X > 0 then
+                    winW = main.AbsoluteSize.X
+                elseif w.Size and w.Size.X then
+                    winW = w.Size.X.Offset
+                end
+            end)
+            local pingColor = curPing < 80 and "#4ade80" or (curPing < 160 and "#facc15" or "#f87171")
+            local fpsColor = curFps >= 45 and "#38bdf8" or (curFps >= 25 and "#facc15" or "#f87171")
+            local footerBrand = tostring(o.FooterTag or o.Brand or "Liyhub Client")
 
-        if winW < 430 then
-            -- 1. Ultra-Compact / Small Phone (< 430px)
-            statsLabel.TextSize = 8.5
-            rightInfoLabel.TextSize = 8.5
-            statsLabel.Size = UDim2.new(1, -55, 1, 0)
-            rightInfoLabel.Size = UDim2.new(0, 50, 1, 0)
-            statsLabel.Text = string.format(
-                "<font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%dFPS</font>",
-                keyType, pingColor, curPing, fpsColor, curFps
-            )
-            rightInfoLabel.Text = string.format(
-                "<font color=\"#ffffff\"><b>%s</b></font>",
-                os.date("%I:%M %p")
-            )
-        elseif winW < 490 then
-            -- 2. Mobile Phone (430 - 489px: Android / iOS Standard)
-            statsLabel.TextSize = 9
-            rightInfoLabel.TextSize = 9
-            statsLabel.Size = UDim2.new(1, -75, 1, 0)
-            rightInfoLabel.Size = UDim2.new(0, 68, 1, 0)
-            statsLabel.Text = string.format(
-                "<font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%d FPS</font>",
-                keyType, pingColor, curPing, fpsColor, curFps
-            )
-            rightInfoLabel.Text = string.format(
-                "<font color=\"#ffffff\"><b>%s</b></font>",
-                os.date("%I:%M %p")
-            )
-        elseif winW < 570 then
-            -- 3. Compact / Mini (490 - 569px)
-            statsLabel.TextSize = 9.5
-            rightInfoLabel.TextSize = 9.5
-            statsLabel.Size = UDim2.new(1, -100, 1, 0)
-            rightInfoLabel.Size = UDim2.new(0, 92, 1, 0)
-            statsLabel.Text = string.format(
-                "<font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%d FPS</font>",
-                keyType, execName, pingColor, curPing, fpsColor, curFps
-            )
-            rightInfoLabel.Text = string.format(
-                "<font color=\"#64748b\">Liyhub</font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font>",
-                os.date("%I:%M %p")
-            )
-        elseif winW < 670 then
-            -- 4. Tablet / Medium (570 - 669px)
-            statsLabel.TextSize = 10
-            rightInfoLabel.TextSize = 10
-            statsLabel.Size = UDim2.new(1, -145, 1, 0)
-            rightInfoLabel.Size = UDim2.new(0, 135, 1, 0)
-            statsLabel.Text = string.format(
-                "Type: <font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%d FPS</font>",
-                keyType, execName, pingColor, curPing, fpsColor, curFps
-            )
-            rightInfoLabel.Text = string.format(
-                "<font color=\"#64748b\">%s</font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font>",
-                footerBrand, os.date("%I:%M %p")
-            )
-        else
-            -- 5. PC / Standard (>= 670px)
-            statsLabel.TextSize = 11
-            rightInfoLabel.TextSize = 11
-            statsLabel.Size = UDim2.new(1, -195, 1, 0)
-            rightInfoLabel.Size = UDim2.new(0, 185, 1, 0)
-            statsLabel.Text = string.format(
-                "Type: <font color=\"#ffffff\"><b>%s</b></font>   <font color=\"#475569\">|</font>   <font color=\"#ffffff\"><b>%s</b></font>   <font color=\"#475569\">|</font>   <font color=\"%s\">%dms</font>   <font color=\"#475569\">|</font>   <font color=\"%s\">%d FPS</font>",
-                keyType, execName, pingColor, curPing, fpsColor, curFps
-            )
-            rightInfoLabel.Text = string.format(
-                "<font color=\"#64748b\">%s</font>   <font color=\"#475569\">|</font>   <font color=\"#ffffff\"><b>%s</b></font>",
-                footerBrand, os.date("%I:%M:%S %p")
-            )
-        end
+            if winW < 430 then
+                -- 1. Ultra-Compact / Small Phone (< 430px)
+                statsLabel.TextSize = 8.5
+                rightInfoLabel.TextSize = 8.5
+                statsLabel.Size = UDim2.new(1, -55, 1, 0)
+                rightInfoLabel.Size = UDim2.new(0, 50, 1, 0)
+                statsLabel.Text = string.format(
+                    "<font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%dFPS</font>",
+                    keyType, pingColor, curPing, fpsColor, curFps
+                )
+                rightInfoLabel.Text = string.format(
+                    "<font color=\"#ffffff\"><b>%s</b></font>",
+                    os.date("%I:%M %p")
+                )
+            elseif winW < 490 then
+                -- 2. Mobile Phone (430 - 489px: Android / iOS Standard)
+                statsLabel.TextSize = 9
+                rightInfoLabel.TextSize = 9
+                statsLabel.Size = UDim2.new(1, -75, 1, 0)
+                rightInfoLabel.Size = UDim2.new(0, 68, 1, 0)
+                statsLabel.Text = string.format(
+                    "<font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%d FPS</font>",
+                    keyType, pingColor, curPing, fpsColor, curFps
+                )
+                rightInfoLabel.Text = string.format(
+                    "<font color=\"#ffffff\"><b>%s</b></font>",
+                    os.date("%I:%M %p")
+                )
+            elseif winW < 570 then
+                -- 3. Compact / Mini (490 - 569px)
+                statsLabel.TextSize = 9.5
+                rightInfoLabel.TextSize = 9.5
+                statsLabel.Size = UDim2.new(1, -100, 1, 0)
+                rightInfoLabel.Size = UDim2.new(0, 92, 1, 0)
+                statsLabel.Text = string.format(
+                    "<font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%d FPS</font>",
+                    keyType, execName, pingColor, curPing, fpsColor, curFps
+                )
+                rightInfoLabel.Text = string.format(
+                    "<font color=\"#64748b\">Liyhub</font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font>",
+                    os.date("%I:%M %p")
+                )
+            elseif winW < 670 then
+                -- 4. Tablet / Medium (570 - 669px)
+                statsLabel.TextSize = 10
+                rightInfoLabel.TextSize = 10
+                statsLabel.Size = UDim2.new(1, -145, 1, 0)
+                rightInfoLabel.Size = UDim2.new(0, 135, 1, 0)
+                statsLabel.Text = string.format(
+                    "Type: <font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font> <font color=\"#475569\">|</font> <font color=\"%s\">%dms</font> <font color=\"#475569\">|</font> <font color=\"%s\">%d FPS</font>",
+                    keyType, execName, pingColor, curPing, fpsColor, curFps
+                )
+                rightInfoLabel.Text = string.format(
+                    "<font color=\"#64748b\">%s</font> <font color=\"#475569\">|</font> <font color=\"#ffffff\"><b>%s</b></font>",
+                    footerBrand, os.date("%I:%M %p")
+                )
+            else
+                -- 5. PC / Standard (>= 670px)
+                statsLabel.TextSize = 11
+                rightInfoLabel.TextSize = 11
+                statsLabel.Size = UDim2.new(1, -195, 1, 0)
+                rightInfoLabel.Size = UDim2.new(0, 185, 1, 0)
+                statsLabel.Text = string.format(
+                    "Type: <font color=\"#ffffff\"><b>%s</b></font>   <font color=\"#475569\">|</font>   <font color=\"#ffffff\"><b>%s</b></font>   <font color=\"#475569\">|</font>   <font color=\"%s\">%dms</font>   <font color=\"#475569\">|</font>   <font color=\"%s\">%d FPS</font>",
+                    keyType, execName, pingColor, curPing, fpsColor, curFps
+                )
+                rightInfoLabel.Text = string.format(
+                    "<font color=\"#64748b\">%s</font>   <font color=\"#475569\">|</font>   <font color=\"#ffffff\"><b>%s</b></font>",
+                    footerBrand, os.date("%I:%M:%S %p")
+                )
+            end
+        end)
     end
-    updateStatsText()
+    pcall(updateStatsText)
     w.UpdateStatsText = updateStatsText
 
     if main then
@@ -2602,7 +2611,7 @@ function Fluent:CreateWindow(o)
                 end
             end)
 
-            updateStatsText()
+            pcall(updateStatsText)
         end
     end)
 
