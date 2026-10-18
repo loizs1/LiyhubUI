@@ -174,42 +174,54 @@ end
 
 local function drag(handle, target)
     local moveConn, endConn
-    handle.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            if moveConn then moveConn:Disconnect() moveConn = nil end
-            if endConn then endConn:Disconnect() endConn = nil end
+    pcall(function()
+        handle.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+                if moveConn then moveConn:Disconnect() moveConn = nil end
+                if endConn then endConn:Disconnect() endConn = nil end
 
-            local start = i.Position
-            local pos = target.Position
+                local start = i.Position
+                local pos = target.Position
 
-            moveConn = UserInputService.InputChanged:Connect(function(moveInput)
-                if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
-                    local d = moveInput.Position - start
-                    local nx = pos.X.Offset + d.X
-                    local ny = pos.Y.Offset + d.Y
-                    local cam = workspace.CurrentCamera
-                    if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
-                        local vp = cam.ViewportSize
-                        local ax = target.AnchorPoint.X
-                        local ay = target.AnchorPoint.Y
-                        local sx = target.AbsoluteSize.X
-                        local sy = target.AbsoluteSize.Y
-                        local curScreenX = math.clamp(vp.X * pos.X.Scale + nx, ax * sx - sx + 40, vp.X - 40 + ax * sx)
-                        local curScreenY = math.clamp(vp.Y * pos.Y.Scale + ny, ay * sy, vp.Y - 40 + ay * sy)
-                        nx = curScreenX - vp.X * pos.X.Scale
-                        ny = curScreenY - vp.Y * pos.Y.Scale
+                moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+                    if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+                        pcall(function()
+                            local d = moveInput.Position - start
+                            local nx = pos.X.Offset + d.X
+                            local ny = pos.Y.Offset + d.Y
+                            local cam = workspace.CurrentCamera
+                            if cam then
+                                local vpOk, vp = pcall(function() return cam.ViewportSize end)
+                                if vpOk and vp and vp.X > 0 and vp.Y > 0 then
+                                    local ax = 0.5
+                                    local ay = 0.5
+                                    local sx = 680
+                                    local sy = 440
+                                    pcall(function()
+                                        ax = target.AnchorPoint.X
+                                        ay = target.AnchorPoint.Y
+                                        sx = target.AbsoluteSize.X
+                                        sy = target.AbsoluteSize.Y
+                                    end)
+                                    local curScreenX = math.clamp(vp.X * pos.X.Scale + nx, ax * sx - sx + 40, vp.X - 40 + ax * sx)
+                                    local curScreenY = math.clamp(vp.Y * pos.Y.Scale + ny, ay * sy, vp.Y - 40 + ay * sy)
+                                    nx = curScreenX - vp.X * pos.X.Scale
+                                    ny = curScreenY - vp.Y * pos.Y.Scale
+                                end
+                            end
+                            target.Position = UDim2.new(pos.X.Scale, nx, pos.Y.Scale, ny)
+                        end)
                     end
-                    target.Position = UDim2.new(pos.X.Scale, nx, pos.Y.Scale, ny)
-                end
-            end)
+                end)
 
-            endConn = UserInputService.InputEnded:Connect(function(endInput)
-                if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
-                    if moveConn then moveConn:Disconnect() moveConn = nil end
-                    if endConn then endConn:Disconnect() endConn = nil end
-                end
-            end)
-        end
+                endConn = UserInputService.InputEnded:Connect(function(endInput)
+                    if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                        if moveConn then moveConn:Disconnect() moveConn = nil end
+                        if endConn then endConn:Disconnect() endConn = nil end
+                    end
+                end)
+            end
+        end)
     end)
 end
 
@@ -789,9 +801,17 @@ local function addSection(tab, titleText, iconOptional)
 
         local dragging = false
         local function updateDrag(input)
-            local rel = (input.Position.X - rail.AbsolutePosition.X) / rail.AbsoluteSize.X
-            local alpha = math.clamp(rel, 0, 1)
-            set(min + (max - min) * alpha, true)
+            pcall(function()
+                local railW = 0
+                pcall(function() railW = rail.AbsoluteSize.X end)
+                if railW > 0 then
+                    local railX = 0
+                    pcall(function() railX = rail.AbsolutePosition.X end)
+                    local rel = (input.Position.X - railX) / railW
+                    local alpha = math.clamp(rel, 0, 1)
+                    set(min + (max - min) * alpha, true)
+                end
+            end)
         end
 
         local moveConn, endConn
@@ -950,10 +970,19 @@ local function addSection(tab, titleText, iconOptional)
         lay.Parent = sc
 
         local function updateScCanvas()
-            local layY = (lay.AbsoluteContentSize and lay.AbsoluteContentSize.Y) or 0
-            sc.CanvasSize = UDim2.new(0, 0, 0, layY + 12)
+            pcall(function()
+                local layY = 0
+                pcall(function()
+                    if lay and lay.AbsoluteContentSize then
+                        layY = lay.AbsoluteContentSize.Y
+                    end
+                end)
+                sc.CanvasSize = UDim2.new(0, 0, 0, layY + 12)
+            end)
         end
-        lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateScCanvas)
+        pcall(function()
+            lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateScCanvas)
+        end)
 
         local optionRows = {}
         local isOpen = false
@@ -1450,12 +1479,19 @@ local function addSection(tab, titleText, iconOptional)
                     if chEndConn then chEndConn:Disconnect() chEndConn = nil end
 
                     local function updateChannel(input)
-                        local trackWidth = math.max(chTrack.AbsoluteSize.X, 1)
-                        local alpha = math.clamp((input.Position.X - chTrack.AbsolutePosition.X) / trackWidth, 0, 1)
-                        local v = math.floor(alpha * 255)
-                        chFill.Size = UDim2.fromScale(alpha, 1)
-                        chVal.Text = tostring(v)
-                        updateColor(ch.Set(v), true)
+                        pcall(function()
+                            local trackWidth = 100
+                            local trackX = 0
+                            pcall(function()
+                                trackWidth = math.max(chTrack.AbsoluteSize.X, 1)
+                                trackX = chTrack.AbsolutePosition.X
+                            end)
+                            local alpha = math.clamp((input.Position.X - trackX) / trackWidth, 0, 1)
+                            local v = math.floor(alpha * 255)
+                            chFill.Size = UDim2.fromScale(alpha, 1)
+                            chVal.Text = tostring(v)
+                            updateColor(ch.Set(v), true)
+                        end)
                     end
                     updateChannel(i)
 
@@ -1586,10 +1622,14 @@ local function addSection(tab, titleText, iconOptional)
         end
 
         task.defer(updateSize)
-        f:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-            if f.AbsoluteSize.X > 50 then
-                updateSize()
-            end
+        pcall(function()
+            f:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                pcall(function()
+                    if f.AbsoluteSize.X > 50 then
+                        updateSize()
+                    end
+                end)
+            end)
         end)
 
         local e = {
@@ -2015,24 +2055,36 @@ function Fluent:CreateWindow(o)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             isResizing = true
             resizeStartMouse = Vector2.new(input.Position.X, input.Position.Y)
-            resizeStartSize = Vector2.new(main.AbsoluteSize.X, main.AbsoluteSize.Y)
+            local initW, initH = 680, 440
+            pcall(function()
+                initW = main.AbsoluteSize.X
+                initH = main.AbsoluteSize.Y
+            end)
+            resizeStartSize = Vector2.new(initW, initH)
             tween(gripIcon, 0.1, { ImageColor3 = Color3.fromRGB(0, 132, 255), ImageTransparency = 0 })
 
             local moveConn, endConn
             moveConn = UserInputService.InputChanged:Connect(function(moveInput)
                 if not isResizing then return end
                 if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
-                    local delta = Vector2.new(moveInput.Position.X, moveInput.Position.Y) - resizeStartMouse
-                    local curCam = workspace.CurrentCamera
-                    local curVp = (curCam and curCam.ViewportSize) or Vector2.new(1920, 1080)
-                    local minW = 450
-                    local minH = 320
-                    local maxW = math.max(curVp.X - 20, 600)
-                    local maxH = math.max(curVp.Y - 20, 400)
-                    local newW = math.clamp(math.floor(resizeStartSize.X + delta.X), minW, maxW)
-                    local newH = math.clamp(math.floor(resizeStartSize.Y + delta.Y), minH, maxH)
-                    main.Size = UDim2.fromOffset(newW, newH)
-                    w.Size = main.Size
+                    pcall(function()
+                        local delta = Vector2.new(moveInput.Position.X, moveInput.Position.Y) - resizeStartMouse
+                        local curCam = workspace.CurrentCamera
+                        local curVp = Vector2.new(1920, 1080)
+                        pcall(function()
+                            if curCam and curCam.ViewportSize.X > 0 then
+                                curVp = curCam.ViewportSize
+                            end
+                        end)
+                        local minW = 450
+                        local minH = 320
+                        local maxW = math.max(curVp.X - 20, 600)
+                        local maxH = math.max(curVp.Y - 20, 400)
+                        local newW = math.clamp(math.floor(resizeStartSize.X + delta.X), minW, maxW)
+                        local newH = math.clamp(math.floor(resizeStartSize.Y + delta.Y), minH, maxH)
+                        main.Size = UDim2.fromOffset(newW, newH)
+                        w.Size = main.Size
+                    end)
                 end
             end)
 
@@ -2054,9 +2106,14 @@ function Fluent:CreateWindow(o)
                 pcall(function()
                     if not gui or not gui.Parent or not main or not main.Parent then return end
                     local newVp = cam.ViewportSize
-                    if isMobile and (main.AbsoluteSize.X > newVp.X - 20 or main.AbsoluteSize.Y > newVp.Y - 20) then
-                        local nw = math.clamp(main.AbsoluteSize.X, 420, math.max(newVp.X - 24, 420))
-                        local nh = math.clamp(main.AbsoluteSize.Y, 300, math.max(newVp.Y - 24, 300))
+                    local mainW, mainH = 680, 440
+                    pcall(function()
+                        mainW = main.AbsoluteSize.X
+                        mainH = main.AbsoluteSize.Y
+                    end)
+                    if isMobile and (mainW > newVp.X - 20 or mainH > newVp.Y - 20) then
+                        local nw = math.clamp(mainW, 420, math.max(newVp.X - 24, 420))
+                        local nh = math.clamp(mainH, 300, math.max(newVp.Y - 24, 300))
                         main.Size = UDim2.fromOffset(nw, nh)
                         w.Size = main.Size
                     end
@@ -2582,28 +2639,38 @@ function Fluent:CreateWindow(o)
     w.UpdateStatsText = updateStatsText
 
     if main then
-        main:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-            pcall(updateStatsText)
+        pcall(function()
+            main:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                pcall(updateStatsText)
+            end)
         end)
     end
 
-    local statsConn = RunService.RenderStepped:Connect(function()
-        frameCount = frameCount + 1
-        local now = os.clock()
-        if now - lastStatsTime >= 0.8 then
-            curFps = math.floor(frameCount / math.max(now - lastStatsTime, 0.001))
-            frameCount = 0
-            lastStatsTime = now
+    local statsRunning = true
+    task.spawn(function()
+        while statsRunning do
+            task.wait(0.8)
+            if not statsRunning then break end
 
             pcall(function()
+                local wsFps = nil
+                pcall(function()
+                    if workspace and workspace.GetRealPhysicsFPS then
+                        wsFps = math.floor(workspace:GetRealPhysicsFPS())
+                    end
+                end)
+                if wsFps and wsFps > 0 then
+                    curFps = wsFps
+                end
+
                 local stats = game:GetService("Stats")
-                local net = stats:FindFirstChild("Network")
+                local net = stats and stats:FindFirstChild("Network")
                 local ssi = net and net:FindFirstChild("ServerStatsItem")
                 local dataPing = ssi and ssi:FindFirstChild("Data Ping")
                 if dataPing then
                     curPing = math.floor(dataPing:GetValue())
                 else
-                    local perf = stats:FindFirstChild("PerformanceStats")
+                    local perf = stats and stats:FindFirstChild("PerformanceStats")
                     local pingItem = perf and perf:FindFirstChild("Ping")
                     if pingItem then
                         curPing = math.floor(pingItem:GetValue())
@@ -2615,11 +2682,10 @@ function Fluent:CreateWindow(o)
         end
     end)
 
-    gui.Destroying:Connect(function()
-        if statsConn then
-            statsConn:Disconnect()
-            statsConn = nil
-        end
+    pcall(function()
+        gui.Destroying:Connect(function()
+            statsRunning = false
+        end)
     end)
 
     function w:SelectTab(i)
@@ -3004,15 +3070,19 @@ function Fluent:CreateWindow(o)
     -- Real-time Search Binding (Debounced 120ms for Zero-Lag on Mobile & PC)
     if search then
         local searchThread
-        search:GetPropertyChangedSignal("Text"):Connect(function()
-            if searchThread then task.cancel(searchThread) end
-            searchThread = task.delay(0.12, function()
-                local q = string.lower(search.Text)
-                for _, t in ipairs(w._tabs) do
-                    for _, e in ipairs(t.Elements) do
-                        if e.SetSearch then e:SetSearch(q) end
-                    end
-                end
+        pcall(function()
+            search:GetPropertyChangedSignal("Text"):Connect(function()
+                if searchThread then task.cancel(searchThread) end
+                searchThread = task.delay(0.12, function()
+                    pcall(function()
+                        local q = string.lower(search.Text or "")
+                        for _, t in ipairs(w._tabs or {}) do
+                            for _, e in ipairs(t.Elements or {}) do
+                                if e.SetSearch then e:SetSearch(q) end
+                            end
+                        end
+                    end)
+                end)
             end)
         end)
     end
