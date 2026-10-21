@@ -658,6 +658,20 @@ local function addSection(tab, titleText, iconOptional)
         b.Size = UDim2.fromOffset(btnW, btnH)
         b.TextSize = isMob and 11 or 12
         b.MouseButton1Click:Connect(function() safe(o.Callback) end)
+
+        -- Whole row clickable (sits under the button so b keeps priority)
+        local hit = Instance.new("TextButton")
+        hit.Name = "RowHit"
+        hit.AutoButtonColor = false
+        hit.Text = ""
+        hit.BackgroundTransparency = 1
+        hit.Size = UDim2.fromScale(1, 1)
+        hit.ZIndex = 2
+        hit.Parent = f
+        hit.MouseButton1Click:Connect(function() safe(o.Callback) end)
+        hit.MouseEnter:Connect(function() tween(f, 0.1, { BackgroundTransparency = 0.2 }) end)
+        hit.MouseLeave:Connect(function() tween(f, 0.1, { BackgroundTransparency = 0.45 }) end)
+
         local e = {
             Frame = f,
             Button = b,
@@ -685,25 +699,58 @@ local function addSection(tab, titleText, iconOptional)
         local isMob = Fluent.IsMobile == true
         local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, isMob and (cfg.Desc and 44 or 40) or 48, cfg.Icon)
         local state = cfg.Default == true
-        local btnW = isMob and 54 or 62
-        local btnH = isMob and 26 or 30
-        local b = button(f, state and "ON" or "OFF", btnH)
-        b.AnchorPoint = Vector2.new(1, 0.5)
-        b.Position = UDim2.new(1, -10, 0.5, 0)
-        b.Size = UDim2.fromOffset(btnW, btnH)
-        b.TextSize = isMob and 11 or 12
-        b.BackgroundColor3 = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface2
+        local badgeW = isMob and 66 or 78
+        local badgeH = isMob and 22 or 26
+
+        -- Status badge (display only; whole row is the hit area)
+        local badge = Instance.new("Frame")
+        badge.Name = "StatusBadge"
+        badge.AnchorPoint = Vector2.new(1, 0.5)
+        badge.Position = UDim2.new(1, -10, 0.5, 0)
+        badge.Size = UDim2.fromOffset(badgeW, badgeH)
+        badge.BackgroundColor3 = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface2
+        badge.BackgroundTransparency = state and 0.1 or 0.35
+        badge.ZIndex = 4
+        badge.Parent = f
+        corner(badge, badgeH / 2)
+        local badgeStroke = stroke(badge, state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Border, state and 0.2 or 0.5)
+
+        local badgeLabel = text(badge, state and "Turn Off" or "Turn On", isMob and 10 or 11, Fluent.CurrentTheme.Text)
+        badgeLabel.Size = UDim2.fromScale(1, 1)
+        badgeLabel.TextXAlignment = Enum.TextXAlignment.Center
+        badgeLabel.Font = Enum.Font.GothamBold
+        badgeLabel.ZIndex = 5
+
+        -- Full-row hit area
+        local hit = Instance.new("TextButton")
+        hit.Name = "RowHit"
+        hit.AutoButtonColor = false
+        hit.Text = ""
+        hit.BackgroundTransparency = 1
+        hit.Size = UDim2.fromScale(1, 1)
+        hit.ZIndex = 6
+        hit.Parent = f
+
         Fluent.Flags[flag] = state
 
         local function set(v, fire)
             state = not not v
             Fluent.Flags[flag] = state
-            b.Text = state and "ON" or "OFF"
-            b.BackgroundColor3 = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface2
+            badgeLabel.Text = state and "Turn Off" or "Turn On"
+            tween(badge, 0.12, {
+                BackgroundColor3 = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface2,
+                BackgroundTransparency = state and 0.1 or 0.35,
+            })
+            pcall(function()
+                badgeStroke.Color = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Border
+                badgeStroke.Transparency = state and 0.2 or 0.5
+            end)
             if fire then safe(cfg.Callback, state) end
         end
 
-        b.MouseButton1Click:Connect(function() set(not state, true) end)
+        hit.MouseButton1Click:Connect(function() set(not state, true) end)
+        hit.MouseEnter:Connect(function() tween(f, 0.1, { BackgroundTransparency = 0.2 }) end)
+        hit.MouseLeave:Connect(function() tween(f, 0.1, { BackgroundTransparency = 0.45 }) end)
 
         local e = {
             Frame = f,
@@ -1741,20 +1788,21 @@ local function addSection(tab, titleText, iconOptional)
 
             local label = text(card, toggleCfg.Name or toggleCfg.Title or "Toggle", 12, Fluent.CurrentTheme.Text)
             label.Position = UDim2.fromOffset(10, 0)
-            label.Size = UDim2.new(1, -62, 1, 0)
+            label.Size = UDim2.new(1, -82, 1, 0)
             label.Font = Enum.Font.GothamBold
 
             local state = toggleCfg.Default == true
-            local btn = button(card, state and "ON" or "OFF", 26)
+            local btn = button(card, state and "Turn Off" or "Turn On", 26)
             btn.AnchorPoint = Vector2.new(1, 0.5)
             btn.Position = UDim2.new(1, -6, 0.5, 0)
-            btn.Size = UDim2.fromOffset(48, 26)
+            btn.Size = UDim2.fromOffset(68, 26)
+            btn.TextSize = 11
             btn.BackgroundColor3 = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface
             btn.Font = Enum.Font.GothamBold
 
             btn.MouseButton1Click:Connect(function()
                 state = not state
-                btn.Text = state and "ON" or "OFF"
+                btn.Text = state and "Turn Off" or "Turn On"
                 btn.BackgroundColor3 = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface
                 safe(toggleCfg.Callback, state)
             end)
@@ -3013,7 +3061,9 @@ function Fluent:CreateWindow(o)
                         pcall(el.Close)
                     end
                 end
-                x.Page.Visible = false
+                if x.Page then
+                    x.Page.Visible = false
+                end
                 if x.IsBottomTab then
                     x.Button.BackgroundColor3 = Fluent.CurrentTheme.Surface
                     x.Button.BackgroundTransparency = 0.2
@@ -3027,7 +3077,9 @@ function Fluent:CreateWindow(o)
                     x.IconElement.ImageColor3 = Fluent.CurrentTheme.SubText
                 end
             end
-            self.Page.Visible = true
+            if self.Page then
+                self.Page.Visible = true
+            end
             self.Button.BackgroundColor3 = Fluent.CurrentTheme.Accent
             self.Button.BackgroundTransparency = 0.78
             self.Accent.BackgroundTransparency = 0
