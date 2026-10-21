@@ -23,7 +23,32 @@ local Fluent = {
     _windows = {},
     _connections = {},
     _destroyed = false,
+    _unload = {},
 }
+
+-- Maid: every long-lived connection goes through track() so a reload can wipe it.
+local function track(c)
+    table.insert(Fluent._connections, c)
+    return c
+end
+
+function Fluent:OnUnload(fn)
+    table.insert(self._unload, fn)
+end
+
+function Fluent:Unload()
+    -- Not one-shot: the same module instance is reused when CreateWindow replaces an old window.
+    for _, fn in ipairs(self._unload) do pcall(fn) end
+    for _, c in ipairs(self._connections) do pcall(function() c:Disconnect() end) end
+    table.clear(self._unload)
+    table.clear(self._connections)
+end
+
+-- A previous load of this library is still alive: kill its connections and loops first.
+if g._LiyhubFluent and g._LiyhubFluent ~= Fluent and typeof(g._LiyhubFluent.Unload) == "function" then
+    pcall(function() g._LiyhubFluent:Unload() end)
+end
+g._LiyhubFluent = Fluent
 
 -- Built-in Theme Suite
 Fluent.Themes = {
@@ -80,6 +105,14 @@ local function safe(fn, ...)
     return res
 end
 
+-- Returns the call's result, or nil if it errored (never the error message).
+local function tryCall(fn, ...)
+    if type(fn) ~= "function" then return nil end
+    local ok, res = pcall(fn, ...)
+    if ok then return res end
+    return nil
+end
+
 local function tween(o, t, p)
     local ok, x = pcall(function()
         local tw = TweenService:Create(o, TweenInfo.new(t or 0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), p)
@@ -104,6 +137,10 @@ local function stroke(p, c, tr)
         trans = 0.85
     end
     x.Transparency = trans
+    -- On text objects a UIStroke outlines the glyphs by default (glow look); outline the box instead.
+    if p:IsA("TextLabel") or p:IsA("TextButton") or p:IsA("TextBox") then
+        x.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    end
     x.Parent = p
     return x
 end
@@ -146,9 +183,24 @@ local function button(p, s, h)
     x.Size = UDim2.new(1, 0, 0, h or 34)
     x.Parent = p
     corner(x, 8)
-    stroke(x, Fluent.CurrentTheme.Border, 0.25)
-    x.MouseEnter:Connect(function() tween(x, 0.1, { BackgroundColor3 = Fluent.CurrentTheme.Hover }) end)
-    x.MouseLeave:Connect(function() tween(x, 0.1, { BackgroundColor3 = Fluent.CurrentTheme.Surface2 }) end)
+    local st = stroke(x, Fluent.CurrentTheme.Border, 0.25)
+    local baseStrokeT = st.Transparency
+    -- Press feedback: shrink slightly while held, spring back on release.
+    local sc = Instance.new("UIScale")
+    sc.Parent = x
+    x.MouseEnter:Connect(function()
+        tween(st, 0.12, { Transparency = math.max(0, baseStrokeT - 0.25) })
+        if x:GetAttribute("NoHover") then return end
+        tween(x, 0.12, { BackgroundColor3 = x:GetAttribute("HoverColor") or Fluent.CurrentTheme.Hover })
+    end)
+    x.MouseLeave:Connect(function()
+        tween(st, 0.12, { Transparency = baseStrokeT })
+        tween(sc, 0.12, { Scale = 1 })
+        if x:GetAttribute("NoHover") then return end
+        tween(x, 0.12, { BackgroundColor3 = x:GetAttribute("BaseColor") or Fluent.CurrentTheme.Surface2 })
+    end)
+    x.MouseButton1Down:Connect(function() tween(sc, 0.08, { Scale = 0.95 }) end)
+    x.MouseButton1Up:Connect(function() tween(sc, 0.14, { Scale = 1 }) end)
     return x
 end
 
@@ -447,15 +499,24 @@ local function resolveIcon(raw)
     return "image", LucideIcons["package"] or "rbxassetid://10709797532"
 end
 
-local function makeElement(parent, titleText, descText, h, iconOptional, orderOptional)
+local function makeElement(parent, titleText, descText, h, iconOptional, orderOptional, reserveOptional)
     local f = Instance.new("Frame")
     f.BackgroundColor3 = Fluent.CurrentTheme.Surface2
     f.BackgroundTransparency = 0.45
     f.Size = UDim2.new(1, 0, 0, h or 48)
     f.LayoutOrder = orderOptional or (#parent:GetChildren() + 2)
     f.Parent = parent
-    corner(f, 8)
-    stroke(f, Fluent.CurrentTheme.Border, 0.3)
+    corner(f, 10)
+    local rowStroke = stroke(f, Fluent.CurrentTheme.Border, 0.3)
+    local rowStrokeT = rowStroke.Transparency
+    f.MouseEnter:Connect(function()
+        tween(f, 0.15, { BackgroundTransparency = 0.25 })
+        tween(rowStroke, 0.15, { Color = Fluent.CurrentTheme.Accent, Transparency = 0.6 })
+    end)
+    f.MouseLeave:Connect(function()
+        tween(f, 0.15, { BackgroundTransparency = 0.45 })
+        tween(rowStroke, 0.15, { Color = Fluent.CurrentTheme.Border, Transparency = rowStrokeT })
+    end)
 
     local iconType, iconVal = resolveIcon(iconOptional)
     local xOffset = 12
@@ -489,26 +550,30 @@ local function makeElement(parent, titleText, descText, h, iconOptional, orderOp
     local isMob = Fluent.IsMobile == true
     local title = text(f, titleText, isMob and 12 or 13, Fluent.CurrentTheme.Text)
     title.Position = UDim2.fromOffset(xOffset, descText and (isMob and 6 or 8) or 0)
-    title.Size = UDim2.new(1, -(isMob and 95 or 180) - (xOffset - 12), 0, descText and (isMob and 16 or 18) or (h or 48))
+    -- Title width follows the row width so it fits both 1- and 2-column layouts.
+    local titleW = reserveOptional and UDim.new(1, -(reserveOptional + xOffset)) or UDim.new(0.56, -(xOffset - 12))
+    title.Size = UDim2.new(titleW.Scale, titleW.Offset, 0, descText and (isMob and 16 or 18) or (h or 48))
     title.Font = Enum.Font.GothamBold
     title.TextTruncate = Enum.TextTruncate.AtEnd
 
     if descText then
         local desc = text(f, descText, isMob and 10 or 11, Fluent.CurrentTheme.SubText)
         desc.Position = UDim2.fromOffset(xOffset, isMob and 23 or 26)
-        desc.Size = UDim2.new(1, -(isMob and 95 or 180) - (xOffset - 12), 0, isMob and 14 or 16)
+        desc.Size = UDim2.new(titleW.Scale, titleW.Offset, 0, isMob and 14 or 16)
         desc.TextTruncate = Enum.TextTruncate.AtEnd
     end
     return f
 end
 
-local function addSection(tab, titleText, iconOptional)
+local function addSection(tab, titleText, iconOptional, sideOptional)
     local sec = { Tab = tab, Elements = {} }
     local secTitle = titleText or ""
     local secIcon = iconOptional
+    local secSide = sideOptional
     if type(titleText) == "table" then
         secTitle = titleText.Name or titleText.Title or ""
         secIcon = titleText.Icon or iconOptional
+        secSide = titleText.Side or titleText.Column or sideOptional
     end
 
     local isMob = Fluent.IsMobile == true
@@ -516,7 +581,9 @@ local function addSection(tab, titleText, iconOptional)
     holder.BackgroundColor3 = Fluent.CurrentTheme.Surface
     holder.Size = UDim2.new(1, 0, 0, isMob and 38 or 45)
     holder.AutomaticSize = Enum.AutomaticSize.Y
-    holder.Parent = tab.Page
+    -- Column placement is optional: on any failure the section still lands on the page.
+    local placed = tab._placeSection and pcall(tab._placeSection, tab, holder, secSide)
+    if not placed or not holder.Parent then holder.Parent = tab.Page end
     corner(holder, 10)
     stroke(holder, Fluent.CurrentTheme.Border, 0.3)
     pad(holder, isMob and 6 or 8)
@@ -565,6 +632,22 @@ local function addSection(tab, titleText, iconOptional)
     head.Position = UDim2.fromOffset(sHeadOffset, 0)
     head.Size = UDim2.new(1, -sHeadOffset, 1, 0)
     head.Font = Enum.Font.GothamBold
+
+    -- Broken icon asset: drop it so the title is not left indented next to an empty gap.
+    local sImgInst = headHolder:FindFirstChild("SectionIcon")
+    if sImgInst and sImgInst:IsA("ImageLabel") then
+        task.spawn(function()
+            pcall(function()
+                game:GetService("ContentProvider"):PreloadAsync({ sImgInst }, function(_, status)
+                    if status ~= Enum.AssetFetchStatus.Success and sImgInst.Parent then
+                        sImgInst:Destroy()
+                        head.Position = UDim2.fromOffset(0, 0)
+                        head.Size = UDim2.new(1, 0, 1, 0)
+                    end
+                end)
+            end)
+        end)
+    end
 
     local function resize()
         task.defer(function()
@@ -649,15 +732,36 @@ local function addSection(tab, titleText, iconOptional)
     function sec:AddButton(o)
         o = o or {}
         local isMob = Fluent.IsMobile == true
-        local f = makeElement(holder, o.Title or o.Name or "Button", o.Description or o.Desc, isMob and (o.Desc and 44 or 40) or 48, o.Icon)
         local btnW = isMob and 70 or 85
+        local f = makeElement(holder, o.Title or o.Name or "Button", o.Description or o.Desc, isMob and (o.Desc and 44 or 40) or 48, o.Icon, nil, btnW + 22)
         local btnH = isMob and 26 or 30
         local b = button(f, o.ButtonText or "Run", btnH)
         b.AnchorPoint = Vector2.new(1, 0.5)
         b.Position = UDim2.new(1, -10, 0.5, 0)
         b.Size = UDim2.fromOffset(btnW, btnH)
         b.TextSize = isMob and 11 or 12
+        local accent = Fluent.CurrentTheme.Accent
+        b.BackgroundColor3 = accent
+        b.TextColor3 = Color3.new(1, 1, 1)
+        b:SetAttribute("BaseColor", accent)
+        b:SetAttribute("HoverColor", accent:Lerp(Color3.new(1, 1, 1), 0.15))
+        b:FindFirstChildOfClass("UIStroke").Color = accent:Lerp(Color3.new(1, 1, 1), 0.35)
+        local sheen = Instance.new("UIGradient")
+        sheen.Rotation = 90
+        sheen.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 200))
+        sheen.Parent = b
         b.MouseButton1Click:Connect(function() safe(o.Callback) end)
+        -- Whole row acts as the button; skip when the press landed on the button itself.
+        local btnHit = false
+        b.MouseButton1Down:Connect(function() btnHit = true end)
+        f.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+                task.defer(function()
+                    if not btnHit then safe(o.Callback) end
+                    btnHit = false
+                end)
+            end
+        end)
         local e = {
             Frame = f,
             Button = b,
@@ -683,30 +787,78 @@ local function addSection(tab, titleText, iconOptional)
         end
 
         local isMob = Fluent.IsMobile == true
-        local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, isMob and (cfg.Desc and 44 or 40) or 48, cfg.Icon)
+        local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, isMob and (cfg.Desc and 44 or 40) or 48, cfg.Icon, nil, isMob and 56 or 64)
         local state = cfg.Default == true
-        local btnW = isMob and 54 or 62
-        local btnH = isMob and 26 or 30
-        local b = button(f, state and "ON" or "OFF", btnH)
+        -- Pill switch instead of an ON/OFF text button
+        local btnW = isMob and 36 or 42
+        local btnH = isMob and 20 or 22
+        local knobD = btnH - 6
+        local b = button(f, "", btnH)
         b.AnchorPoint = Vector2.new(1, 0.5)
-        b.Position = UDim2.new(1, -10, 0.5, 0)
+        b.Position = UDim2.new(1, -12, 0.5, 0)
         b.Size = UDim2.fromOffset(btnW, btnH)
-        b.TextSize = isMob and 11 or 12
-        b.BackgroundColor3 = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface2
+        b:FindFirstChildOfClass("UICorner").CornerRadius = UDim.new(1, 0)
+        b:SetAttribute("NoHover", true)
+        local track_ = b:FindFirstChildOfClass("UIStroke")
+        local offColor = Color3.fromRGB(40, 45, 58)
+        local knob = Instance.new("Frame")
+        knob.Name = "Knob"
+        knob.AnchorPoint = Vector2.new(0, 0.5)
+        knob.Size = UDim2.fromOffset(knobD, knobD)
+        knob.BackgroundColor3 = Color3.new(1, 1, 1)
+        knob.ZIndex = 3
+        knob.Parent = b
+        corner(knob, knobD)
+        -- Thin dark ring instead of a child shadow frame (children draw over their parent).
+        local knobRing = Instance.new("UIStroke")
+        knobRing.Color = Color3.new(0, 0, 0)
+        knobRing.Transparency = 0.75
+        knobRing.Parent = knob
+        local function knobPos(on) return UDim2.new(0, on and (btnW - knobD - 3) or 3, 0.5, 0) end
+        local function paint(on, t)
+            local bg = on and Fluent.CurrentTheme.Accent or offColor
+            local sc = on and Fluent.CurrentTheme.Accent:Lerp(Color3.new(1, 1, 1), 0.3) or Fluent.CurrentTheme.Border
+            if t then
+                tween(b, t, { BackgroundColor3 = bg })
+                tween(track_, t, { Color = sc, Transparency = on and 0.4 or 0.85 })
+                tween(knob, t, { BackgroundColor3 = on and Color3.new(1, 1, 1) or Color3.fromRGB(200, 206, 220) })
+            else
+                b.BackgroundColor3 = bg
+                track_.Color = sc
+                track_.Transparency = on and 0.4 or 0.85
+                knob.BackgroundColor3 = on and Color3.new(1, 1, 1) or Color3.fromRGB(200, 206, 220)
+            end
+        end
+        knob.Position = knobPos(state)
+        paint(state)
         Fluent.Flags[flag] = state
 
+        local e
         local function set(v, fire)
             state = not not v
             Fluent.Flags[flag] = state
-            b.Text = state and "ON" or "OFF"
-            b.BackgroundColor3 = state and Fluent.CurrentTheme.Accent or Fluent.CurrentTheme.Surface2
+            if e then e.Value = state end
+            tween(knob, 0.2, { Position = knobPos(state) })
+            paint(state, 0.2)
             if fire then safe(cfg.Callback, state) end
         end
 
         b.MouseButton1Click:Connect(function() set(not state, true) end)
+        -- Whole row toggles; skip when the press landed on the switch itself.
+        local switchHit = false
+        b.MouseButton1Down:Connect(function() switchHit = true end)
+        f.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+                task.defer(function()
+                    if not switchHit then set(not state, true) end
+                    switchHit = false
+                end)
+            end
+        end)
 
-        local e = {
+        e = {
             Frame = f,
+            Value = state,
             SetValue = function(_, v) set(v, true) end,
             GetValue = function() return state end,
             SetSearch = function(_, q)
@@ -731,7 +883,7 @@ local function addSection(tab, titleText, iconOptional)
 
         local isMob = Fluent.IsMobile == true
         local hasDesc = (cfg.Description or cfg.Desc) ~= nil
-        local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, hasDesc and (isMob and 60 or 66) or (isMob and 48 or 54), cfg.Icon)
+        local f = makeElement(holder, cfg.Title or cfg.Name or flag, cfg.Description or cfg.Desc, hasDesc and (isMob and 60 or 66) or (isMob and 48 or 54), cfg.Icon, nil, isMob and 64 or 72)
 
         local min, max = cfg.Min or 0, cfg.Max or 100
         local step = cfg.Step or 1
@@ -760,10 +912,18 @@ local function addSection(tab, titleText, iconOptional)
         rail.Name = "SliderTrack"
         rail.BackgroundColor3 = Color3.fromRGB(24, 30, 42)
         rail.Position = UDim2.new(0, 14, 0, hasDesc and (isMob and 42 or 48) or (isMob and 32 or 36))
-        rail.Size = UDim2.new(1, -28, 0, 5)
+        rail.Size = UDim2.new(1, -28, 0, 6)
         rail.Parent = f
         corner(rail, 3)
         stroke(rail, Fluent.CurrentTheme.Border, 0.45)
+        -- Larger invisible hit area so the thin rail is easy to grab.
+        local hit = Instance.new("Frame")
+        hit.Name = "HitArea"
+        hit.BackgroundTransparency = 1
+        hit.AnchorPoint = Vector2.new(0, 0.5)
+        hit.Position = UDim2.new(0, 0, 0.5, 0)
+        hit.Size = UDim2.new(1, 0, 0, 22)
+        hit.Parent = rail
 
         -- Blue Line Fill
         local fill = Instance.new("Frame")
@@ -772,18 +932,21 @@ local function addSection(tab, titleText, iconOptional)
         fill.Size = UDim2.fromScale(math.clamp((current - min) / math.max(1, max - min), 0, 1), 1)
         fill.Parent = rail
         corner(fill, 3)
+        local fillGrad = Instance.new("UIGradient")
+        fillGrad.Color = ColorSequence.new(Fluent.CurrentTheme.Accent:Lerp(Color3.new(0, 0, 0), 0.25), Fluent.CurrentTheme.Accent:Lerp(Color3.new(1, 1, 1), 0.2))
+        fillGrad.Parent = fill
 
         -- Circular Draggable Knob / Thumb
         local knob = Instance.new("Frame")
         knob.Name = "Knob"
-        knob.Size = UDim2.fromOffset(13, 13)
+        knob.Size = UDim2.fromOffset(14, 14)
         knob.AnchorPoint = Vector2.new(0.5, 0.5)
         knob.Position = UDim2.new(1, 0, 0.5, 0)
         knob.BackgroundColor3 = Color3.fromRGB(250, 252, 255)
         knob.ZIndex = 5
         knob.Parent = fill
-        corner(knob, 7)
-        stroke(knob, Fluent.CurrentTheme.Accent, 0.1)
+        corner(knob, 8)
+        stroke(knob, Fluent.CurrentTheme.Accent, 0).Thickness = 2
 
         local function set(v, fire)
             current = math.clamp(v, min, max)
@@ -815,12 +978,12 @@ local function addSection(tab, titleText, iconOptional)
         end
 
         local moveConn, endConn
-        rail.InputBegan:Connect(function(i)
+        hit.InputBegan:Connect(function(i)
             if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
                 if moveConn then moveConn:Disconnect() moveConn = nil end
                 if endConn then endConn:Disconnect() endConn = nil end
 
-                tween(knob, 0.1, { Size = UDim2.fromOffset(16, 16) })
+                tween(knob, 0.1, { Size = UDim2.fromOffset(18, 18) })
                 updateDrag(i)
 
                 moveConn = UserInputService.InputChanged:Connect(function(moveInput)
@@ -833,7 +996,7 @@ local function addSection(tab, titleText, iconOptional)
                     if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
                         if moveConn then moveConn:Disconnect() moveConn = nil end
                         if endConn then endConn:Disconnect() endConn = nil end
-                        tween(knob, 0.1, { Size = UDim2.fromOffset(13, 13) })
+                        tween(knob, 0.1, { Size = UDim2.fromOffset(14, 14) })
                     end
                 end)
             end
@@ -897,10 +1060,22 @@ local function addSection(tab, titleText, iconOptional)
         pill.BackgroundColor3 = Fluent.CurrentTheme.Surface
         pill.AnchorPoint = Vector2.new(1, 0.5)
         pill.Position = UDim2.new(1, -10, 0, headerH / 2)
-        pill.Size = UDim2.fromOffset(Fluent.IsMobile and 125 or 165, Fluent.IsMobile and 26 or 28)
+        pill.Size = UDim2.new(0.42, 0, 0, Fluent.IsMobile and 26 or 28)
         pill.Parent = f
-        corner(pill, 7)
-        stroke(pill, Fluent.CurrentTheme.Border, 0.35)
+        local pillCap = Instance.new("UISizeConstraint")
+        pillCap.MaxSize = Vector2.new(Fluent.IsMobile and 125 or 165, 40)
+        pillCap.Parent = pill
+        corner(pill, 8)
+        local pillStroke = stroke(pill, Fluent.CurrentTheme.Border, 0.35)
+        local pillStrokeT = pillStroke.Transparency
+        pill.MouseEnter:Connect(function()
+            tween(pill, 0.12, { BackgroundColor3 = Fluent.CurrentTheme.Hover })
+            tween(pillStroke, 0.12, { Color = Fluent.CurrentTheme.Accent, Transparency = 0.45 })
+        end)
+        pill.MouseLeave:Connect(function()
+            tween(pill, 0.12, { BackgroundColor3 = Fluent.CurrentTheme.Surface })
+            tween(pillStroke, 0.12, { Color = Fluent.CurrentTheme.Border, Transparency = pillStrokeT })
+        end)
 
         local pillLabel = text(pill, "", 11, Fluent.CurrentTheme.Text)
         pillLabel.Position = UDim2.fromOffset(10, 0)
@@ -1237,13 +1412,26 @@ local function addSection(tab, titleText, iconOptional)
         box.BackgroundColor3 = Fluent.CurrentTheme.Surface2
         box.Position = UDim2.new(1, -10, 0.5, 0)
         box.AnchorPoint = Vector2.new(1, 0.5)
-        box.Size = UDim2.fromOffset(Fluent.IsMobile and 125 or 180, Fluent.IsMobile and 26 or 30)
+        box.Size = UDim2.new(0.42, 0, 0, Fluent.IsMobile and 26 or 30)
         box.Parent = f
-        corner(box, 7)
-        stroke(box, Fluent.CurrentTheme.Border, 0.25)
+        local boxCap = Instance.new("UISizeConstraint")
+        boxCap.MaxSize = Vector2.new(Fluent.IsMobile and 125 or 180, 40)
+        boxCap.Parent = box
+        corner(box, 8)
+        local boxStroke = stroke(box, Fluent.CurrentTheme.Border, 0.25)
+        local boxStrokeT = boxStroke.Transparency
+        pad(box, 0, 10, 0, 10)
+        box.TextXAlignment = Enum.TextXAlignment.Left
+        box.TextTruncate = Enum.TextTruncate.AtEnd
         Fluent.Flags[flag] = box.Text
 
+        box.Focused:Connect(function()
+            tween(boxStroke, 0.15, { Color = Fluent.CurrentTheme.Accent, Transparency = 0.1 })
+            tween(box, 0.15, { BackgroundColor3 = Fluent.CurrentTheme.Surface })
+        end)
         box.FocusLost:Connect(function()
+            tween(boxStroke, 0.15, { Color = Fluent.CurrentTheme.Border, Transparency = boxStrokeT })
+            tween(box, 0.15, { BackgroundColor3 = Fluent.CurrentTheme.Surface2 })
             Fluent.Flags[flag] = box.Text
             safe(cfg.Callback, box.Text)
         end)
@@ -1285,11 +1473,30 @@ local function addSection(tab, titleText, iconOptional)
         local key = tostring(defaultKey)
         Fluent.Flags[flag] = Enum.KeyCode[key] or Enum.KeyCode.RightControl
 
-        local b = button(f, "[ " .. key .. " ]", 30)
+        local b = button(f, key, 28)
         b.AnchorPoint = Vector2.new(1, 0.5)
         b.Position = UDim2.new(1, -10, 0.5, 0)
-        b.Size = UDim2.fromOffset(115, 30)
+        b.Size = UDim2.fromOffset(0, 28)
+        b.AutomaticSize = Enum.AutomaticSize.X
         b.Font = Enum.Font.GothamBold
+        b.TextSize = 11
+        b.BackgroundColor3 = Fluent.CurrentTheme.Surface
+        b:SetAttribute("BaseColor", Fluent.CurrentTheme.Surface)
+        pad(b, 0, 12, 0, 12)
+        local minW = Instance.new("UISizeConstraint")
+        minW.MinSize = Vector2.new(64, 28)
+        minW.Parent = b
+        -- Keycap bottom edge for a physical-key look.
+        local cap = Instance.new("Frame")
+        cap.Name = "KeycapEdge"
+        cap.AnchorPoint = Vector2.new(0.5, 1)
+        cap.Position = UDim2.new(0.5, 0, 1, 0)
+        cap.Size = UDim2.new(1, -8, 0, 2)
+        cap.BackgroundColor3 = Fluent.CurrentTheme.Accent
+        cap.BackgroundTransparency = 0.5
+        cap.BorderSizePixel = 0
+        cap.Parent = b
+        corner(cap, 1)
 
         local listening = false
         local connection, listenerConn
@@ -1297,11 +1504,11 @@ local function addSection(tab, titleText, iconOptional)
         local function bind(k)
             if connection then connection:Disconnect() end
             if k and k ~= Enum.KeyCode.Unknown then
-                connection = UserInputService.InputBegan:Connect(function(i, gProc)
+                connection = track(UserInputService.InputBegan:Connect(function(i, gProc)
                     if not gProc and i.KeyCode == k then
                         safe(cfg.Callback, k)
                     end
-                end)
+                end))
             end
         end
         bind(Enum.KeyCode[key] or Enum.KeyCode.RightControl)
@@ -1309,7 +1516,7 @@ local function addSection(tab, titleText, iconOptional)
         b.MouseButton1Click:Connect(function()
             if listening then return end
             listening = true
-            b.Text = "[ ... ]"
+            b.Text = "Press a key..."
             b.TextColor3 = Fluent.CurrentTheme.Accent
             tween(b, 0.15, { BackgroundColor3 = Fluent.CurrentTheme.Hover })
 
@@ -1318,20 +1525,20 @@ local function addSection(tab, titleText, iconOptional)
                 if i.UserInputType == Enum.UserInputType.Keyboard then
                     if i.KeyCode == Enum.KeyCode.Escape or i.KeyCode == Enum.KeyCode.Backspace then
                         key = "None"
-                        b.Text = "[ None ]"
+                        b.Text = "None"
                         b.TextColor3 = Fluent.CurrentTheme.SubText
                         bind(nil)
                         Fluent.Flags[flag] = nil
                     elseif i.KeyCode ~= Enum.KeyCode.Unknown then
                         key = i.KeyCode.Name
-                        b.Text = "[ " .. key .. " ]"
+                        b.Text = key
                         b.TextColor3 = Fluent.CurrentTheme.Text
                         bind(i.KeyCode)
                         Fluent.Flags[flag] = i.KeyCode
                         safe(cfg.Callback, i.KeyCode)
                     end
                     listening = false
-                    tween(b, 0.15, { BackgroundColor3 = Fluent.CurrentTheme.Surface2 })
+                    tween(b, 0.15, { BackgroundColor3 = Fluent.CurrentTheme.Surface })
                     if listenerConn then listenerConn:Disconnect() listenerConn = nil end
                 end
             end)
@@ -1342,7 +1549,7 @@ local function addSection(tab, titleText, iconOptional)
             SetValue = function(_, v)
                 local name = typeof(v) == "EnumItem" and v.Name or tostring(v)
                 key = name
-                b.Text = "[ " .. name .. " ]"
+                b.Text = name
                 bind(Enum.KeyCode[name])
                 Fluent.Flags[flag] = Enum.KeyCode[name]
             end,
@@ -1383,10 +1590,22 @@ local function addSection(tab, titleText, iconOptional)
         pill.BackgroundColor3 = Fluent.CurrentTheme.Surface
         pill.AnchorPoint = Vector2.new(1, 0.5)
         pill.Position = UDim2.new(1, -10, 0, headerH / 2)
-        pill.Size = UDim2.fromOffset(130, 28)
+        pill.Size = UDim2.new(0.4, 0, 0, 28)
         pill.Parent = f
-        corner(pill, 7)
-        stroke(pill, Fluent.CurrentTheme.Border, 0.35)
+        local colorCap = Instance.new("UISizeConstraint")
+        colorCap.MaxSize = Vector2.new(130, 40)
+        colorCap.Parent = pill
+        corner(pill, 8)
+        local pillStroke = stroke(pill, Fluent.CurrentTheme.Border, 0.35)
+        local pillStrokeT = pillStroke.Transparency
+        pill.MouseEnter:Connect(function()
+            tween(pill, 0.12, { BackgroundColor3 = Fluent.CurrentTheme.Hover })
+            tween(pillStroke, 0.12, { Color = Fluent.CurrentTheme.Accent, Transparency = 0.45 })
+        end)
+        pill.MouseLeave:Connect(function()
+            tween(pill, 0.12, { BackgroundColor3 = Fluent.CurrentTheme.Surface })
+            tween(pillStroke, 0.12, { Color = Fluent.CurrentTheme.Border, Transparency = pillStrokeT })
+        end)
 
         local previewBox = Instance.new("Frame")
         previewBox.Name = "Preview"
@@ -1919,8 +2138,8 @@ function Fluent:CreateWindow(o)
         defaultSize = UDim2.fromOffset(targetW, targetH)
         defaultTabWidth = 125
     else
-        defaultSize = UDim2.fromOffset(680, 480)
-        defaultTabWidth = 165
+        defaultSize = UDim2.fromOffset(820, 540)
+        defaultTabWidth = 150
     end
 
     local size = o.Size or defaultSize
@@ -1945,6 +2164,7 @@ function Fluent:CreateWindow(o)
         _visible = true,
         TabWidth = (isMobile and (o.TabWidth and math.min(o.TabWidth, 135) or defaultTabWidth)) or (o.TabWidth or defaultTabWidth),
         Device = deviceName,
+        Columns = o.Columns, -- nil = auto (2 when wide enough), 1 = always single, 2 = prefer two
         IsMobile = isMobile,
         IsAndroid = isAndroid,
         IsIOS = isIOS,
@@ -2301,8 +2521,7 @@ function Fluent:CreateWindow(o)
     -- Scrollable Tab Navigation
     local sidebar = Instance.new("ScrollingFrame")
     sidebar.Name = "Sidebar"
-    sidebar.BackgroundColor3 = self.CurrentTheme.Surface
-    sidebar.BackgroundTransparency = 0.2
+    sidebar.BackgroundTransparency = 1
     sidebar.BorderSizePixel = 0
     sidebar.Size = UDim2.new(1, 0, 1, isMobile and -86 or -98)
     sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -2313,12 +2532,22 @@ function Fluent:CreateWindow(o)
     sidebar.ElasticBehavior = Enum.ElasticBehavior.Always
     sidebar.ZIndex = 3
     sidebar.Parent = sidebarContainer
-    corner(sidebar, 11)
-    stroke(sidebar, self.CurrentTheme.Border, 0.35)
-    pad(sidebar, isMobile and 5 or 7, isMobile and 5 or 7, isMobile and 8 or 12, isMobile and 5 or 7)
+    pad(sidebar, isMobile and 2 or 4, isMobile and 6 or 8, isMobile and 8 or 12, 0)
+
+    -- Thin divider between menu and content instead of a boxed sidebar.
+    local sideDivider = Instance.new("Frame")
+    sideDivider.Name = "SidebarDivider"
+    sideDivider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    sideDivider.BackgroundTransparency = 0.92
+    sideDivider.BorderSizePixel = 0
+    sideDivider.AnchorPoint = Vector2.new(1, 0)
+    sideDivider.Position = UDim2.new(1, 5, 0, 2)
+    sideDivider.Size = UDim2.new(0, 1, 1, -4)
+    sideDivider.ZIndex = 3
+    sideDivider.Parent = sidebarContainer
 
     local sl = Instance.new("UIListLayout")
-    sl.Padding = UDim.new(0, 5)
+    sl.Padding = UDim.new(0, 2)
     sl.SortOrder = Enum.SortOrder.LayoutOrder
     sl.Parent = sidebar
 
@@ -2350,12 +2579,11 @@ function Fluent:CreateWindow(o)
     profileCard.Name = "NeverloseProfile"
     profileCard.Size = UDim2.new(1, 0, 0, isMobile and 44 or 50)
     profileCard.Position = UDim2.new(0, 0, 1, isMobile and -44 or -50)
-    profileCard.BackgroundColor3 = self.CurrentTheme.Surface
-    profileCard.BackgroundTransparency = 0.2
+    profileCard.BackgroundColor3 = self.CurrentTheme.Surface2
+    profileCard.BackgroundTransparency = 0.55
     profileCard.ZIndex = 4
     profileCard.Parent = sidebarContainer
     corner(profileCard, 10)
-    stroke(profileCard, self.CurrentTheme.Border, 0.35)
 
     -- Avatar Headshot
     -- Avatar Headshot
@@ -2790,8 +3018,11 @@ function Fluent:CreateWindow(o)
     w.AndroidPinTab = floatingPill
 
     function w:Destroy()
+        statsRunning = false
+        Fluent:Unload()
         if self.Gui then self.Gui:Destroy() end
     end
+    w.OnUnload = function(_, fn) Fluent:OnUnload(fn) end
     w.Close = w.Destroy
 
     function w:Minimize()
@@ -2838,8 +3069,8 @@ function Fluent:CreateWindow(o)
             w:SetDevice("Compact")
         else
             -- PC / Standard
-            targetSize = UDim2.fromOffset(680, 480)
-            targetTabW = 165
+            targetSize = UDim2.fromOffset(680, 520)
+            targetTabW = 150
             w:SetDevice("PC")
         end
 
@@ -2883,22 +3114,17 @@ function Fluent:CreateWindow(o)
             or string.lower(titleText) == "config"
 
         local t = { Window = self, Title = titleText, Icon = iconAsset, Elements = {}, IsBottomTab = isBottomTab }
-        table.insert(self._tabs, t)
-        self.Tabs[t.Title:gsub("%W", "")] = t
 
         local tb = Instance.new("TextButton")
         tb.AutoButtonColor = false
         tb.Text = ""
-        tb.BackgroundColor3 = isBottomTab and Fluent.CurrentTheme.Surface or Fluent.CurrentTheme.Surface2
-        tb.BackgroundTransparency = isBottomTab and 0.2 or 0.45
-        tb.Size = UDim2.new(1, 0, 0, isMobile and 32 or 38)
+        tb.BackgroundColor3 = Fluent.CurrentTheme.Hover
+        tb.BackgroundTransparency = 1
+        tb.Size = UDim2.new(1, -6, 0, isMobile and 32 or 36)
         tb.ZIndex = 4
-        tb.LayoutOrder = isBottomTab and 1 or #self._tabs
+        tb.LayoutOrder = isBottomTab and 1 or (#self._tabs + 1)
         tb.Parent = isBottomTab and bottomTabs or sidebar
         corner(tb, 8)
-        if isBottomTab then
-            stroke(tb, Fluent.CurrentTheme.Border, 0.35)
-        end
 
         local accent = Instance.new("Frame")
         accent.BackgroundColor3 = Fluent.CurrentTheme.Accent
@@ -2965,15 +3191,39 @@ function Fluent:CreateWindow(o)
         page.Parent = pages
         pad(page, 4, 6, 28, 4)
 
+        -- Page holds two columns side by side; the row height is the taller column.
         local pl = Instance.new("UIListLayout")
+        pl.FillDirection = Enum.FillDirection.Horizontal
         pl.Padding = UDim.new(0, 8)
         pl.SortOrder = Enum.SortOrder.LayoutOrder
         pl.Parent = page
+        local cols = {}
+        for i = 1, 2 do
+            local c = Instance.new("Frame")
+            c.Name = i == 1 and "ColumnLeft" or "ColumnRight"
+            c.BackgroundTransparency = 1
+            c.AutomaticSize = Enum.AutomaticSize.Y
+            c.Size = UDim2.new(1, 0, 0, 0)
+            c.LayoutOrder = i
+            c.Visible = i == 1
+            c.ZIndex = 2
+            c.Parent = page
+            local cl = Instance.new("UIListLayout")
+            cl.Padding = UDim.new(0, 8)
+            cl.SortOrder = Enum.SortOrder.LayoutOrder
+            cl.Parent = c
+            cols[i] = c
+        end
+        t.Columns = cols
+        t._holders = {}
         t.Page = page
         t.Button = tb
         t.Accent = accent
         t.Label = label
         t.IconElement = iconElement
+        -- Register only once the button and page exist, so Select never sees a half-built tab.
+        table.insert(self._tabs, t)
+        self.Tabs[(t.Title:gsub("%W", ""))] = t
 
         local function updatePageCanvas()
             pcall(function()
@@ -2984,9 +3234,50 @@ function Fluent:CreateWindow(o)
             pl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updatePageCanvas)
         end)
 
+        -- Two columns when the page is wide enough (PC), one column on phones or narrow windows.
+        local win = self
+        local colMode = 0
+        local function relayout()
+            local pw = page.AbsoluteSize.X
+            local minW = (win.Columns == 2) and 400 or 560
+            local want = (win.Columns ~= 1 and pw >= minW) and 2 or 1
+            for _, h in ipairs(t._holders) do
+                local target = (want == 2 and h:GetAttribute("Side") == "Right") and cols[2] or cols[1]
+                if h.Parent ~= target then h.Parent = target end
+            end
+            if want ~= colMode then
+                colMode = want
+                cols[2].Visible = want == 2
+                cols[1].Size = want == 2 and UDim2.new(0.5, -4, 0, 0) or UDim2.new(1, 0, 0, 0)
+                cols[2].Size = UDim2.new(0.5, -4, 0, 0)
+            end
+            updatePageCanvas()
+        end
+        pcall(function()
+            page:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() task.defer(relayout) end)
+        end)
+
+        function t:_placeSection(holder, side)
+            local sd = side and string.lower(tostring(side)) or nil
+            if sd == "right" or sd == "r" or sd == "2" then
+                sd = "Right"
+            elseif sd == "left" or sd == "l" or sd == "1" then
+                sd = "Left"
+            else
+                sd = (#self._holders % 2 == 0) and "Left" or "Right"
+            end
+            holder:SetAttribute("Side", sd)
+            table.insert(self._holders, holder)
+            -- Global order keeps the original sequence when collapsed to one column.
+            holder.LayoutOrder = #self._holders
+            holder.Parent = cols[1]
+            relayout()
+        end
+
         tb.MouseEnter:Connect(function()
             if self.ActiveTab ~= t then
-                tween(tb, 0.1, { BackgroundTransparency = 0.1, BackgroundColor3 = Fluent.CurrentTheme.Hover })
+                tween(tb, 0.12, { BackgroundTransparency = 0.55, BackgroundColor3 = Fluent.CurrentTheme.Hover })
+                tween(label, 0.12, { TextColor3 = Fluent.CurrentTheme.Text })
                 if iconElement and iconElement:IsA("ImageLabel") then
                     tween(iconElement, 0.1, { ImageColor3 = Fluent.CurrentTheme.Text })
                 end
@@ -2994,9 +3285,8 @@ function Fluent:CreateWindow(o)
         end)
         tb.MouseLeave:Connect(function()
             if self.ActiveTab ~= t then
-                local bg = isBottomTab and Fluent.CurrentTheme.Surface or Fluent.CurrentTheme.Surface2
-                local trans = isBottomTab and 0.2 or 0.45
-                tween(tb, 0.1, { BackgroundTransparency = trans, BackgroundColor3 = bg })
+                tween(tb, 0.12, { BackgroundTransparency = 1 })
+                tween(label, 0.12, { TextColor3 = Fluent.CurrentTheme.SubText })
                 if iconElement and iconElement:IsA("ImageLabel") then
                     tween(iconElement, 0.1, { ImageColor3 = Fluent.CurrentTheme.SubText })
                 end
@@ -3007,29 +3297,37 @@ function Fluent:CreateWindow(o)
         end)
 
         function t:Select()
+            -- Each tab is reset in its own pcall so one destroyed or foreign tab can't break selection.
             for _, x in ipairs(self.Window._tabs) do
-                for _, el in ipairs(x.Elements or {}) do
-                    if type(el) == "table" and type(el.Close) == "function" then
-                        pcall(el.Close)
+                if type(x) == "table" and x ~= self then
+                    for _, el in ipairs(x.Elements or {}) do
+                        if type(el) == "table" and type(el.Close) == "function" then
+                            pcall(el.Close)
+                        end
                     end
-                end
-                x.Page.Visible = false
-                if x.IsBottomTab then
-                    x.Button.BackgroundColor3 = Fluent.CurrentTheme.Surface
-                    x.Button.BackgroundTransparency = 0.2
-                else
-                    x.Button.BackgroundColor3 = Fluent.CurrentTheme.Surface2
-                    x.Button.BackgroundTransparency = 0.45
-                end
-                x.Accent.BackgroundTransparency = 1
-                x.Label.TextColor3 = Fluent.CurrentTheme.SubText
-                if x.IconElement and x.IconElement:IsA("ImageLabel") then
-                    x.IconElement.ImageColor3 = Fluent.CurrentTheme.SubText
+                    pcall(function()
+                        if x.Page then x.Page.Visible = false end
+                        if x.Button then
+                            x.Button.BackgroundColor3 = Fluent.CurrentTheme.Hover
+                            x.Button.BackgroundTransparency = 1
+                        end
+                        if x.Accent then x.Accent.BackgroundTransparency = 1 end
+                        if x.Label then x.Label.TextColor3 = Fluent.CurrentTheme.SubText end
+                        if x.IconElement and x.IconElement:IsA("ImageLabel") then
+                            x.IconElement.ImageColor3 = Fluent.CurrentTheme.SubText
+                        end
+                    end)
                 end
             end
+            for _, el in ipairs(self.Elements or {}) do
+                if type(el) == "table" and type(el.Close) == "function" then
+                    pcall(el.Close)
+                end
+            end
+            if not self.Page or not self.Page.Parent then return end
             self.Page.Visible = true
             self.Button.BackgroundColor3 = Fluent.CurrentTheme.Accent
-            self.Button.BackgroundTransparency = 0.78
+            self.Button.BackgroundTransparency = 0.86
             self.Accent.BackgroundTransparency = 0
             self.Label.TextColor3 = Fluent.CurrentTheme.Text
             if self.IconElement and self.IconElement:IsA("ImageLabel") then
@@ -3054,8 +3352,8 @@ function Fluent:CreateWindow(o)
             end
         end
 
-        function t:AddSection(secNameOrCfg, iconOptional)
-            local s = addSection(self, secNameOrCfg, iconOptional)
+        function t:AddSection(secNameOrCfg, iconOptional, sideOptional)
+            local s = addSection(self, secNameOrCfg, iconOptional, sideOptional)
             table.insert(self.Elements, s)
             return s
         end
@@ -3088,13 +3386,15 @@ function Fluent:CreateWindow(o)
     end
 
     -- Hotkey Toggle Binding
-    w._toggleKey = o.MinimizeKey or Enum.KeyCode.RightControl
-    UserInputService.InputBegan:Connect(function(i, gProc)
+    local initialKey = o.MinimizeKey or o.Keybind or o.ToggleKey
+    if type(initialKey) == "string" then initialKey = Enum.KeyCode[initialKey] end
+    w._toggleKey = (typeof(initialKey) == "EnumItem" and initialKey) or Enum.KeyCode.RightControl
+    track(UserInputService.InputBegan:Connect(function(i, gProc)
         local toggleK = w._toggleKey or Enum.KeyCode.RightControl
         if not gProc and i.KeyCode == toggleK then
             w:Toggle()
         end
-    end)
+    end))
 
     -- Universal Script Compatibility Shims
     function w:CreateSection(secOpt)
@@ -3171,43 +3471,49 @@ function Fluent:CreateWindow(o)
         if targetSecOrTab and (targetSecOrTab.AddTextbox or targetSecOrTab.AddToggle or targetSecOrTab.AddButton) then
             sec = targetSecOrTab
         elseif targetSecOrTab and targetSecOrTab.AddSection then
-            sec = targetSecOrTab:AddSection({ Name = "Config Profile Manager", Icon = "save" })
+            sec = targetSecOrTab:AddSection({ Name = "Config", Icon = "save" })
         else
             local tab = self.Tabs["Settings"] or self.Tabs["settings"] or self:AddTab("Settings", "settings")
-            sec = tab:AddSection({ Name = "Config Profile Manager", Icon = "save" })
+            sec = tab:AddSection({ Name = "Config", Icon = "save" })
         end
 
         local configsList = Fluent:GetConfigs()
-        local currentProfile = self.ActiveConfigProfile or Fluent.ActiveConfigProfile or configsList[1] or "default"
+        local currentProfile = self.ActiveConfigProfile or Fluent.ActiveConfigProfile or tryCall(Fluent.GetAutoLoad, Fluent) or configsList[1] or "default"
         self.ActiveConfigProfile = currentProfile
         Fluent.ActiveConfigProfile = currentProfile
 
-        local profileInput = sec:AddTextbox({
+        local profileInput, profileDropdown
+        local function setCurrent(name)
+            if not name or name == "" then return end
+            currentProfile = name
+            self.ActiveConfigProfile = name
+            Fluent.ActiveConfigProfile = name
+        end
+        local function syncWidgets(list)
+            if profileDropdown and profileDropdown.SetOptions then
+                profileDropdown:SetOptions(list or Fluent:GetConfigs(), currentProfile)
+                profileDropdown:Close()
+            end
+            if profileInput and profileInput.SetValue then
+                profileInput:SetValue(currentProfile, false)
+            end
+        end
+
+        profileInput = sec:AddTextbox({
             Name = "Profile Name",
-            Placeholder = "Profile name (e.g. default)...",
+            Placeholder = "default",
             Default = currentProfile,
             Flag = "__Liyhub_ProfileName",
-            Callback = function(txt)
-                if txt and txt ~= "" then
-                    currentProfile = txt
-                    self.ActiveConfigProfile = txt
-                    Fluent.ActiveConfigProfile = txt
-                end
-            end
+            Callback = function(txt) setCurrent(txt) end
         })
 
-        self._profileInput = profileInput
-        Fluent._profileInput = profileInput
-
-        local profileDropdown = sec:AddDropdown({
-            Name = "Select Saved Profile",
+        profileDropdown = sec:AddDropdown({
+            Name = "Saved Profiles",
             Options = configsList,
             Default = currentProfile,
             Flag = "__Liyhub_ProfileSelect",
             Callback = function(choice)
-                currentProfile = choice
-                self.ActiveConfigProfile = choice
-                Fluent.ActiveConfigProfile = choice
+                setCurrent(choice)
                 if profileInput and profileInput.SetValue then
                     profileInput:SetValue(choice, false)
                 end
@@ -3221,95 +3527,110 @@ function Fluent:CreateWindow(o)
 
         local row1 = sec:AddRow()
         row1:AddButton({
-            Name = "Save Config",
+            Name = "Save",
             Callback = function()
                 Fluent:SaveConfig(currentProfile)
-                local updated = Fluent:GetConfigs()
-                if profileDropdown and profileDropdown.SetOptions then
-                    profileDropdown:SetOptions(updated, currentProfile)
-                    profileDropdown:Close()
-                end
-                if profileInput and profileInput.SetValue then
-                    profileInput:SetValue(currentProfile, false)
-                end
+                syncWidgets()
             end
         })
         row1:AddButton({
-            Name = "Load Config",
+            Name = "Load",
             Callback = function()
                 Fluent:LoadConfig(currentProfile)
-                if profileInput and profileInput.SetValue then
-                    profileInput:SetValue(currentProfile, false)
-                end
-                if profileDropdown and profileDropdown.SetValue then
-                    profileDropdown:SetValue(currentProfile, false)
-                end
+                syncWidgets()
             end
         })
 
         local row2 = sec:AddRow()
         row2:AddButton({
-            Name = "Delete Config",
+            Name = "Delete",
             Callback = function()
                 Fluent:DeleteConfig(currentProfile)
                 local updated = Fluent:GetConfigs()
-                currentProfile = updated[1] or "default"
-                self.ActiveConfigProfile = currentProfile
-                Fluent.ActiveConfigProfile = currentProfile
-                if profileDropdown and profileDropdown.SetOptions then
-                    profileDropdown:SetOptions(updated, currentProfile)
-                    profileDropdown:Close()
-                end
-                if profileInput and profileInput.SetValue then
-                    profileInput:SetValue(currentProfile, false)
-                end
+                setCurrent(updated[1] or "default")
+                syncWidgets(updated)
             end
         })
         row2:AddButton({
-            Name = "Refresh List",
+            Name = "Refresh",
             Callback = function()
                 local updated = Fluent:GetConfigs()
                 if not table.find(updated, currentProfile) then
-                    currentProfile = updated[1] or "default"
-                    self.ActiveConfigProfile = currentProfile
-                    Fluent.ActiveConfigProfile = currentProfile
+                    setCurrent(updated[1] or "default")
                 end
-                if profileDropdown and profileDropdown.SetOptions then
-                    profileDropdown:SetOptions(updated, currentProfile)
-                    profileDropdown:Close()
-                end
-                if profileInput and profileInput.SetValue then
-                    profileInput:SetValue(currentProfile, false)
-                end
-                Fluent:Notify({ Title = "Config Manager", Content = "Profiles refreshed.", Type = "Info", Duration = 1.5 })
+                syncWidgets(updated)
+                Fluent:Notify({ Title = "Config", Content = "Profile list refreshed.", Type = "Info", Duration = 1.5 })
             end
         })
 
+        sec:AddToggle("__Liyhub_AutoLoad", {
+            Title = "Auto Load",
+            Description = "Load last used profile on start",
+            Default = tryCall(Fluent.IsAutoLoadEnabled, Fluent) ~= false,
+            Callback = function(on) Fluent:SetAutoLoadEnabled(on, currentProfile) end
+        })
+
         sec:AddParagraph({
-            Title = "Config Notice / Perhatian Config",
-            Content = "[ID] Jika skrip menerima pembaruan, harap buat config baru dan hapus config lama agar tidak terjadi konflik atau error flag.\n\n[EN] If the script receives an update, please create a new config and delete old ones to prevent flag conflicts or corruption."
+            Title = "Note",
+            Content = "After a script update, save a new profile and delete old ones to avoid flag conflicts."
         })
 
         return sec
     end
 
-    function w:AddSettingsTab()
-        local tab = w:AddTab("Settings", "settings")
-        w:BuildConfigSection(tab)
-        local menuSec = tab:AddSection({ Name = "Menu Options", Icon = "settings" })
-        menuSec:AddKeybind({
-            Name = "Menu Keybind",
-            Default = o.MinimizeKey or Enum.KeyCode.RightControl,
+    -- Universal UI controls every script gets in its Settings tab.
+    function w:BuildUISection(targetTab)
+        local tab = targetTab or self.Tabs["Settings"] or self.Tabs["settings"] or self:AddTab("Settings", "settings")
+        local uiSec = tab:AddSection({ Name = "Interface", Icon = "settings" })
+        uiSec:AddKeybind("__Liyhub_MenuKey", {
+            Title = "Menu Keybind",
+            Default = (typeof(self._toggleKey) == "EnumItem" and self._toggleKey.Name) or "RightControl",
             Callback = function(k)
+                self:SetToggleKey(k)
                 o.MinimizeKey = k
             end
         })
-        menuSec:AddButton({
-            Name = "Unload / Close Menu",
+
+        local row = uiSec:AddRow()
+        row:AddButton({
+            Name = "Rejoin",
             Callback = function()
-                w:Destroy()
+                pcall(function()
+                    local TeleportService = game:GetService("TeleportService")
+                    if #Players:GetPlayers() <= 1 then
+                        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                    else
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+                    end
+                end)
             end
         })
+        row:AddButton({
+            Name = "Copy Job ID",
+            Callback = function()
+                local clip = (typeof(setclipboard) == "function" and setclipboard) or (typeof(toclipboard) == "function" and toclipboard)
+                if clip then
+                    pcall(clip, tostring(game.JobId))
+                    Fluent:Notify({ Title = "Copied", Content = "Job ID copied to clipboard.", Type = "Info", Duration = 1.5 })
+                else
+                    Fluent:Notify({ Title = "Unavailable", Content = "Clipboard is not supported here.", Type = "Warning", Duration = 2 })
+                end
+            end
+        })
+
+        uiSec:AddButton({
+            Title = "Unload UI",
+            Description = "Close menu and stop loops",
+            ButtonText = "Unload",
+            Callback = function() self:Destroy() end
+        })
+        return uiSec
+    end
+
+    function w:AddSettingsTab()
+        local tab = self.Tabs["Settings"] or self.Tabs["settings"] or self:AddTab("Settings", "settings")
+        self:BuildConfigSection(tab)
+        pcall(self.BuildUISection, self, tab)
         return tab
     end
 
@@ -3320,10 +3641,26 @@ function Fluent:CreateWindow(o)
             end
         end
 
-        if o.AutoConfig then
-            pcall(function()
-                local activeProf = w.ActiveConfigProfile or Fluent.ActiveConfigProfile or "default"
-                w:LoadConfig(activeProf)
+        -- Auto load: wait until the script stops adding elements, then apply the remembered profile.
+        local okAuto, autoName = pcall(Fluent.GetAutoLoad, Fluent)
+        if not okAuto then autoName = nil end
+        if not autoName and o.AutoConfig then autoName = w.ActiveConfigProfile or Fluent.ActiveConfigProfile or "default" end
+        if autoName then
+            task.spawn(function()
+                local function optionCount()
+                    local n = 0
+                    for _ in pairs(Fluent.Options) do n += 1 end
+                    return n
+                end
+                local last, stableFor, waited = optionCount(), 0, 0
+                while stableFor < 0.6 and waited < 6 do
+                    task.wait(0.2)
+                    waited += 0.2
+                    local now = optionCount()
+                    if now == last then stableFor += 0.2 else stableFor, last = 0, now end
+                end
+                if Fluent._destroyed or not gui.Parent then return end
+                pcall(function() Fluent:LoadConfig(autoName, { Silent = true }) end)
             end)
         end
 
@@ -3382,6 +3719,53 @@ local function getProfilePath(name)
     local cleanName = tostring(name or "default"):gsub("[^%w%-_%s]", "")
     if cleanName == "" then cleanName = "default" end
     return dir .. "/" .. cleanName .. ".json"
+end
+
+-- Auto-load pointer: "<profile>" = enabled, "-<profile>" = disabled but remembered.
+local function autoLoadPath()
+    return getConfigDir() .. "/_autoload.txt"
+end
+
+local function readAutoLoad()
+    local raw = Fluent._autoLoadMemory
+    if typeof(isfile) == "function" and typeof(readfile) == "function" then
+        pcall(function()
+            if isfile(autoLoadPath()) then raw = readfile(autoLoadPath()) end
+        end)
+    end
+    raw = raw and tostring(raw):gsub("^%s+", ""):gsub("%s+$", "") or nil
+    if not raw or raw == "" then return nil, true end
+    if string.sub(raw, 1, 1) == "-" then return string.sub(raw, 2), false end
+    return raw, true
+end
+
+local function writeAutoLoad(name, enabled)
+    local raw = (enabled and "" or "-") .. tostring(name or "")
+    Fluent._autoLoadMemory = raw
+    ensureConfigDir()
+    if typeof(writefile) == "function" then pcall(writefile, autoLoadPath(), raw) end
+end
+
+-- Profile to load on start, or nil when auto load is off / nothing remembered.
+function Fluent:GetAutoLoad()
+    local name, enabled = readAutoLoad()
+    if enabled and name and name ~= "" then return name end
+    return nil
+end
+
+function Fluent:IsAutoLoadEnabled()
+    local _, enabled = readAutoLoad()
+    return enabled ~= false
+end
+
+function Fluent:SetAutoLoadEnabled(on, name)
+    local remembered = readAutoLoad()
+    writeAutoLoad(remembered or name or self.ActiveConfigProfile or "default", on ~= false)
+end
+
+-- Remember the last used profile unless the user turned auto load off.
+local function rememberProfile(name)
+    if Fluent:IsAutoLoadEnabled() then writeAutoLoad(name, true) end
 end
 
 local function serializeValue(v)
@@ -3501,6 +3885,7 @@ function Fluent:SaveConfig(name)
     if typeof(writefile) == "function" then
         pcall(writefile, path, encoded)
     end
+    rememberProfile(name)
 
     self:Notify({
         Title = "Config Saved",
@@ -3511,8 +3896,9 @@ function Fluent:SaveConfig(name)
     return true
 end
 
-function Fluent:LoadConfig(name)
+function Fluent:LoadConfig(name, opts)
     name = (name and name ~= "") and name or "default"
+    local silent = type(opts) == "table" and opts.Silent == true
     self.ActiveConfigProfile = name
     self.CurrentProfile = name
     ensureConfigDir()
@@ -3528,6 +3914,7 @@ function Fluent:LoadConfig(name)
     end
 
     if not raw then
+        if silent then return false end
         self:Notify({
             Title = "Config Not Found",
             Content = "Profile '" .. name .. "' does not exist.",
@@ -3539,6 +3926,7 @@ function Fluent:LoadConfig(name)
 
     local s, data = pcall(function() return HttpService:JSONDecode(raw) end)
     if not s or type(data) ~= "table" or type(data.Flags) ~= "table" then
+        if silent then return false end
         self:Notify({
             Title = "Config Error",
             Content = "Invalid config format for '" .. name .. "'.",
@@ -3556,6 +3944,7 @@ function Fluent:LoadConfig(name)
         ["Menu Keybind"] = true,
     }
 
+    rememberProfile(name)
     for flag, rawVal in pairs(data.Flags) do
         local fStr = tostring(flag)
         if not ignoredFlags[fStr] and not fStr:match("^__Liyhub_") then
@@ -3578,7 +3967,7 @@ function Fluent:LoadConfig(name)
     end
 
     self:Notify({
-        Title = "Config Loaded",
+        Title = silent and "Config Auto Loaded" or "Config Loaded",
         Content = "Profile '" .. name .. "' applied.",
         Type = "Success",
         Duration = 2.5
