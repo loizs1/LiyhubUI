@@ -2161,6 +2161,7 @@ function Fluent:CreateWindow(o)
         Size = size,
         Tabs = {},
         _tabs = {},
+        _sortTabs = (o.SortTabs ~= false) and (o.AutoSortTabs ~= false),
         _visible = true,
         TabWidth = (isMobile and (o.TabWidth and math.min(o.TabWidth, 135) or defaultTabWidth)) or (o.TabWidth or defaultTabWidth),
         Device = deviceName,
@@ -2560,6 +2561,39 @@ function Fluent:CreateWindow(o)
         sl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateSidebarCanvas)
     end)
 
+    local function getTabSortKey(str)
+        local s = string.lower(tostring(str or ""))
+        local alpha = string.match(s, "%w.*")
+        return alpha or s
+    end
+
+    local function sortSidebarTabs()
+        if w._sortTabs == false then return end
+        local normalTabs = {}
+        for _, tab in ipairs(w._tabs) do
+            if not tab.IsBottomTab and tab.Button and tab.Button.Parent == sidebar then
+                table.insert(normalTabs, tab)
+            end
+        end
+        table.sort(normalTabs, function(a, b)
+            local ordA = a.Order or (type(a._config) == "table" and (a._config.Order or a._config.LayoutOrder))
+            local ordB = b.Order or (type(b._config) == "table" and (b._config.Order or b._config.LayoutOrder))
+            if ordA and ordB then
+                if ordA ~= ordB then return ordA < ordB end
+            elseif ordA then
+                return true
+            elseif ordB then
+                return false
+            end
+            return getTabSortKey(a.Title) < getTabSortKey(b.Title)
+        end)
+        for orderIdx, tab in ipairs(normalTabs) do
+            tab.Button.LayoutOrder = orderIdx
+        end
+    end
+    w.SortTabs = sortSidebarTabs
+    w.ResortTabs = sortSidebarTabs
+
     -- Pinned Bottom Tabs Container (Directly above Profile Card, full width)
     local bottomTabs = Instance.new("Frame")
     bottomTabs.Name = "BottomTabs"
@@ -2919,7 +2953,13 @@ function Fluent:CreateWindow(o)
     function w:SelectTab(i)
         local t
         if type(i) == "number" then
-            t = self._tabs[i]
+            for _, tab in ipairs(self._tabs) do
+                if not tab.IsBottomTab and tab.Button and tab.Button.LayoutOrder == i then
+                    t = tab
+                    break
+                end
+            end
+            if not t then t = self._tabs[i] end
         elseif type(i) == "string" then
             t = self.Tabs[i] or self.Tabs[i:gsub("%W", "")]
         end
@@ -3113,9 +3153,18 @@ function Fluent:CreateWindow(o)
             or string.find(string.lower(titleText), "setting")
             or string.lower(titleText) == "config"
 
-        local t = { Window = self, Title = titleText, Icon = iconAsset, Elements = {}, IsBottomTab = isBottomTab }
+        local t = {
+            Window = self,
+            Title = titleText,
+            Icon = iconAsset,
+            Elements = {},
+            IsBottomTab = isBottomTab,
+            _config = (type(to) == "table" and to) or {},
+            Order = type(to) == "table" and (to.Order or to.LayoutOrder)
+        }
 
         local tb = Instance.new("TextButton")
+        tb.Name = "Tab_" .. titleText
         tb.AutoButtonColor = false
         tb.Text = ""
         tb.BackgroundColor3 = Fluent.CurrentTheme.Hover
@@ -3224,6 +3273,7 @@ function Fluent:CreateWindow(o)
         -- Register only once the button and page exist, so Select never sees a half-built tab.
         table.insert(self._tabs, t)
         self.Tabs[(t.Title:gsub("%W", ""))] = t
+        sortSidebarTabs()
 
         local function updatePageCanvas()
             pcall(function()
@@ -3678,8 +3728,24 @@ function Fluent:CreateWindow(o)
             end
         end
 
+        sortSidebarTabs()
         if not w.ActiveTab and #w._tabs > 0 then
-            w._tabs[1]:Select()
+            local topTab = nil
+            local minOrder = math.huge
+            for _, tab in ipairs(w._tabs) do
+                if not tab.IsBottomTab and tab.Button and tab.Button.Parent == sidebar then
+                    local ord = tab.Button.LayoutOrder or 0
+                    if ord < minOrder then
+                        minOrder = ord
+                        topTab = tab
+                    end
+                end
+            end
+            if topTab then
+                topTab:Select()
+            else
+                w._tabs[1]:Select()
+            end
         elseif w.ActiveTab then
             w.ActiveTab:Select()
         end
